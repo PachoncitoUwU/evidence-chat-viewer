@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v1.4.3';
-export const BUILD_COMMIT = 'e305f88';
-export const BUILD_DATE = '08/08/2026 17:42';
-export const BUILD_NOTES = 'Corrección de separación de audios pegados y separadores de mensajes sin espacio';
+export const APP_VERSION = 'v1.4.4';
+export const BUILD_COMMIT = 'f719b02';
+export const BUILD_DATE = '08/08/2026 17:46';
+export const BUILD_NOTES = 'Ojito (Eye) en todos los mensajes (texto, fotos, videos, audios, stickers) y proteccion de adjuntos';

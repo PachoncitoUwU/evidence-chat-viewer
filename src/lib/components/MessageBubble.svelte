@@ -156,6 +156,13 @@
 					>
 						<Download size={13} color="white" />
 					</button>
+					<button
+						class="sticker-dl-btn"
+						on:click|stopPropagation={() => hiddenMediaStore.toggle(message.id)}
+						title="Ocultar sticker del chat y del PDF"
+					>
+						<Eye size={13} color="white" />
+					</button>
 					<span class="sticker-time" style="color:{metaColor}">{time}</span>
 				</div>
 			</div>
@@ -174,13 +181,22 @@
 				/>
 				<div class="gif-overlay">
 					<span class="gif-time" style="color:{metaColor}">{time}</span>
-					<button
-						class="gif-dl-btn"
-						on:click|stopPropagation={() => downloadFile(att.previewUrl!, att.fileName)}
-						title="Descargar"
-					>
-						<Download size={14} color="white" />
-					</button>
+					<div style="display:flex; gap:4px;">
+						<button
+							class="gif-dl-btn"
+							on:click|stopPropagation={() => downloadFile(att.previewUrl!, att.fileName)}
+							title="Descargar"
+						>
+							<Download size={14} color="white" />
+						</button>
+						<button
+							class="gif-dl-btn"
+							on:click|stopPropagation={() => hiddenMediaStore.toggle(message.id)}
+							title="Ocultar GIF del chat y del PDF"
+						>
+							<Eye size={14} color="white" />
+						</button>
+					</div>
 				</div>
 			</div>
 
@@ -196,14 +212,23 @@
 					--bubble-bg: {isOwner ? outBg : inBg};
 				"
 			>
-				<!-- Botón para copiar cita pericial -->
-				<button class="copy-cite-btn" on:click={copyCitation} title="Copiar cita pericial">
-					{#if copied}
-						<Check size={12} color="#00a884" />
-					{:else}
-						<Copy size={12} color={metaColor} />
-					{/if}
-				</button>
+				<!-- Acciones flotantes del mensaje (Copiar Cita y Ocultar con Ojito 👁️) -->
+				<div class="msg-actions-hover">
+					<button class="action-btn" on:click={copyCitation} title="Copiar cita pericial">
+						{#if copied}
+							<Check size={12} color="#00a884" />
+						{:else}
+							<Copy size={12} color={metaColor} />
+						{/if}
+					</button>
+					<button
+						class="action-btn"
+						on:click={() => hiddenMediaStore.toggle(message.id)}
+						title="Ocultar del chat y del PDF (Ojito)"
+					>
+						<Eye size={12} color={metaColor} />
+					</button>
+				</div>
 
 				<!-- Registro de Llamada de WhatsApp -->
 				{#if call}
@@ -593,20 +618,35 @@
 		max-width: 290px;
 	}
 
-	.copy-cite-btn {
+	.msg-actions-hover {
 		position: absolute;
 		top: 4px;
 		right: 6px;
-		background: rgba(0,0,0,0.06);
-		border: none;
-		border-radius: 4px;
-		padding: 2px 4px;
-		cursor: pointer;
+		display: flex;
+		align-items: center;
+		gap: 3px;
 		opacity: 0;
 		transition: opacity 0.15s;
+		z-index: 5;
 	}
-	.bubble:hover .copy-cite-btn {
+	.bubble:hover .msg-actions-hover {
 		opacity: 1;
+	}
+	.action-btn {
+		background: rgba(0,0,0,0.08);
+		border: none;
+		border-radius: 4px;
+		padding: 2px 5px;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+	.bubble.dark .action-btn {
+		background: rgba(255,255,255,0.12);
+	}
+	.action-btn:hover {
+		background: rgba(0,0,0,0.18);
 	}
 
 	/* ── Tarjeta de Llamadas ── */
