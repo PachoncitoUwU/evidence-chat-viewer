@@ -1,0 +1,119 @@
+/**
+ * tokens.css — Sistema "Dossier" · Paleta Clara y Profesional
+ * ------------------------------------------------------------------
+ * Fondo blanco hueso, acentos en índigo y verde WhatsApp,
+ * tipografía oscura legible. Aspecto de app moderna y limpia.
+ * ------------------------------------------------------------------
+ */
+
+:root {
+	/* — Superficies — */
+	--void: #f0f2f5;
+	--void-raised: #e6e9ef;
+	--panel: rgba(255, 255, 255, 0.92);
+	--panel-solid: #ffffff;
+	--panel-hover: rgba(255, 255, 255, 0.98);
+
+	/* — Bordes — */
+	--hairline: rgba(0, 0, 0, 0.08);
+	--hairline-strong: rgba(0, 0, 0, 0.14);
+	--hairline-brass: rgba(79, 70, 229, 0.35);
+
+	/* — Texto — */
+	--ink-100: #111827;   /* casi negro */
+	--ink-60:  #6b7280;   /* gris medio */
+	--ink-40:  #9ca3af;   /* gris claro */
+
+	/* — Acento primario: índigo — */
+	--brass: #4f46e5;
+	--brass-dim: rgba(79, 70, 229, 0.10);
+	--brass-glow: rgba(79, 70, 229, 0.35);
+
+	/* — Acento secundario: verde WhatsApp (burbujas recibidas/owner) — */
+	--steel: #25d366;
+	--steel-dim: rgba(37, 211, 102, 0.12);
+	--steel-glow: rgba(37, 211, 102, 0.35);
+
+	/* — Burbujas de chat — */
+	--bubble-in:    #ffffff;           /* mensajes recibidos: blanco */
+	--bubble-out:   #dcf8c6;           /* mensajes enviados: verde suave (estilo WhatsApp) */
+	--bubble-in-border:  rgba(0,0,0,0.07);
+	--bubble-out-border: rgba(37,211,102,0.25);
+
+	/* — Alertas — */
+	--alert: #dc2626;
+	--alert-dim: rgba(220, 38, 38, 0.10);
+
+	/* — Tipografía — */
+	--font-display: 'Inter', 'Segoe UI', system-ui, sans-serif;
+	--font-body:    'Inter', 'Segoe UI', system-ui, sans-serif;
+	--font-mono:    'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+
+	--text-2xs: 0.6875rem;
+	--text-xs:  0.75rem;
+	--text-sm:  0.8125rem;
+	--text-base: 0.9375rem;
+	--text-lg:  1.0625rem;
+	--text-xl:  1.375rem;
+	--text-2xl: 1.75rem;
+
+	--tracking-wide:  0.06em;
+	--tracking-wider: 0.10em;
+
+	/* — Espaciado — */
+	--space-1: 4px;
+	--space-2: 8px;
+	--space-3: 12px;
+	--space-4: 16px;
+	--space-5: 24px;
+	--space-6: 32px;
+	--space-7: 48px;
+
+	/* — Elevación / vidrio — */
+	--blur-panel:   12px;
+	--blur-soft:    6px;
+	--radius-sm:    8px;
+	--radius-md:    12px;
+	--radius-lg:    18px;
+	--shadow-panel: 0 2px 16px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0,0,0,0.04);
+	--shadow-inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+
+	/* — Movimiento — */
+	--ease-out-quad: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+	--ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+	--dur-fast:  0.16s;
+	--dur-base:  0.28s;
+	--dur-slow:  0.5s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	:root {
+		--dur-fast: 0.001s;
+		--dur-base: 0.001s;
+		--dur-slow: 0.001s;
+	}
+}
+
+/* ── Dark mode (WhatsApp Web dark theme) ── */
+[data-theme="dark"] {
+	--void: #0d1418;
+	--void-raised: #182229;
+	--panel: rgba(31, 44, 51, 0.95);
+	--panel-solid: #1f2c33;
+	--panel-hover: rgba(31, 44, 51, 1);
+
+	--hairline: rgba(255, 255, 255, 0.08);
+	--hairline-strong: rgba(255, 255, 255, 0.14);
+
+	--ink-100: #e9edef;
+	--ink-60:  #8696a0;
+	--ink-40:  #667781;
+
+	--bubble-in:    #1f2c33;
+	--bubble-out:   #005c4b;
+	--bubble-in-border:  rgba(255,255,255,0.06);
+	--bubble-out-border: rgba(0,92,75,0.5);
+
+	--shadow-panel: 0 2px 16px rgba(0,0,0,0.30), 0 1px 4px rgba(0,0,0,0.20);
+}
+

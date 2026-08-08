@@ -1,0 +1,127 @@
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	height: 100%;
+}
+
+body.dossier-theme {
+	margin: 0;
+	background: var(--void);
+	color: var(--ink-100);
+	font-family: var(--font-body);
+	font-size: var(--text-base);
+	line-height: 1.5;
+	-webkit-font-smoothing: antialiased;
+}
+
+/* Soporte mejorado de emojis para todos los sistemas operativos */
+body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Segoe UI Emoji", "Segoe UI Symbol", 
+		"Apple Color Emoji", "Noto Color Emoji", "Android Emoji", "EmojiOne Color", 
+		Roboto, Helvetica, Arial, sans-serif;
+}
+
+::selection {
+	background: var(--brass-dim);
+	color: var(--brass);
+}
+
+::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+::-webkit-scrollbar-thumb {
+	background: rgba(0, 0, 0, 0.15);
+	border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+	background: var(--brass);
+}
+
+:focus-visible {
+	outline: 2px solid var(--brass);
+	outline-offset: 2px;
+	border-radius: var(--radius-sm);
+}
+
+h1, h2, h3, h4 {
+	font-family: var(--font-display);
+	margin: 0;
+	letter-spacing: -0.02em;
+	color: var(--ink-100);
+}
+
+p {
+	margin: 0;
+}
+
+button {
+	font-family: inherit;
+	color: inherit;
+	background: none;
+	border: none;
+	cursor: pointer;
+}
+
+/* — Panel de tarjeta — */
+.glass-panel {
+	background: var(--panel);
+	backdrop-filter: blur(var(--blur-panel));
+	-webkit-backdrop-filter: blur(var(--blur-panel));
+	border: 1px solid var(--hairline);
+	box-shadow: var(--shadow-panel);
+	border-radius: var(--radius-lg);
+}
+
+/* — Etiqueta auxiliar mono — */
+.ledger-label {
+	font-family: var(--font-mono);
+	font-size: var(--text-2xs);
+	letter-spacing: var(--tracking-wide);
+	text-transform: uppercase;
+	color: var(--ink-40);
+}
+
+/* — Marco de evidencia (brackets de esquina) — */
+.evidence-frame {
+	position: relative;
+}
+.evidence-frame::before,
+.evidence-frame::after {
+	content: '';
+	position: absolute;
+	width: 10px;
+	height: 10px;
+	border-color: var(--brass);
+	opacity: 0;
+	transition: opacity var(--dur-fast) var(--ease-out-quad);
+	pointer-events: none;
+}
+.evidence-frame::before {
+	top: -4px;
+	left: -4px;
+	border-top: 1.5px solid;
+	border-left: 1.5px solid;
+}
+.evidence-frame::after {
+	bottom: -4px;
+	right: -4px;
+	border-bottom: 1.5px solid;
+	border-right: 1.5px solid;
+}
+.evidence-frame:hover::before,
+.evidence-frame:hover::after,
+.evidence-frame.is-active::before,
+.evidence-frame.is-active::after {
+	opacity: 1;
+}
