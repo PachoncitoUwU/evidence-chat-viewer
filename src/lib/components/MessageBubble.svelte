@@ -15,6 +15,7 @@
 	export let bubbleOutColor: string = '';
 	export let bubbleInColor: string = '';
 	export let emojiStyle: EmojiStyle = 'native';
+	export let isGroup: boolean = false;
 
 	$: isOwner = message.senderRole === 'owner';
 	$: time = message.time.slice(0, 5);
@@ -134,7 +135,7 @@
 	{#if message.isSystemEvent}
 		<div class="system-pill" class:dark={darkMode}>{message.text}</div>
 	{:else}
-		{#if !isOwner}
+		{#if isGroup && !isOwner}
 			<span class="sender-name" style="color:{senderColor}">{message.senderName}</span>
 		{/if}
 
@@ -877,4 +878,12 @@
 
 	:global(.chat-link) { color: #0284c7; text-decoration: underline; word-break: break-all; }
 	:global([data-theme="dark"] .chat-link) { color: #53bdeb; }
+
+	:global(.emoji-img) {
+		width: 1.25em;
+		height: 1.25em;
+		vertical-align: -0.2em;
+		display: inline-block;
+		margin: 0 0.1em;
+	}
 </style>

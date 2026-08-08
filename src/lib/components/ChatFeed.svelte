@@ -167,6 +167,7 @@
 						bubbleOutColor={cfg.bubbleOutColor}
 						bubbleInColor={cfg.bubbleInColor}
 						emojiStyle={cfg.emojiStyle}
+						isGroup={participants.length > 2}
 					/>
 				{/if}
 			{/each}

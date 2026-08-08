@@ -215,7 +215,16 @@ async function parseTxt(
 
 					if (blob) {
 						sizeBytes = blob.size;
-						previewUrl = URL.createObjectURL(blob);
+						if (kind === 'image' || isSticker || kind === 'audio') {
+							previewUrl = await new Promise<string>((resolve) => {
+								const reader = new FileReader();
+								reader.onloadend = () => resolve(reader.result as string || '');
+								reader.onerror = () => resolve('');
+								reader.readAsDataURL(blob);
+							});
+						} else {
+							previewUrl = URL.createObjectURL(blob);
+						}
 					}
 
 					attachment = {
