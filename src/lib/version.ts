@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v1.4.2';
-export const BUILD_COMMIT = '06e3718';
-export const BUILD_DATE = '08/08/2026 17:36';
-export const BUILD_NOTES = 'Optimización masiva 1.69GB (18,600+ msgs), emojis escalados y soporte iPhone completo';
+export const APP_VERSION = 'v1.4.3';
+export const BUILD_COMMIT = 'e305f88';
+export const BUILD_DATE = '08/08/2026 17:42';
+export const BUILD_NOTES = 'Corrección de separación de audios pegados y separadores de mensajes sin espacio';

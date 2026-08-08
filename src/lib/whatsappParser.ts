@@ -37,7 +37,7 @@ function detectCallInfo(text: string): CallInfo | null {
 // ── Regex ──────────────────────────────────────────────────────────
 
 // Línea de mensaje con remitente (soporta Android e iPhone / iOS, corchetes [], segundos, AM/PM, tilde ~ en nombres, coma opcional, guion opcional)
-const LINE_RE = /^\[?(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}),?\s+(\d{1,2}:\d{2}(?::\d{2})?)\s*([\u202f\u00a0\s]*(?:a\.\s*m\.|p\.\s*m\.|am|pm|a\.m\.|p\.m\.))?\]?(?:\s*[-\u2013]\s*|\s+)(~?\s*[^:]+?):\s+([\s\S]*)$/i;
+const LINE_RE = /^\[?(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}),?\s+(\d{1,2}:\d{2}(?::\d{2})?)\s*([\u202f\u00a0\s]*(?:a\.\s*m\.|p\.\s*m\.|am|pm|a\.m\.|p\.m\.))?\]?(?:\s*[-\u2013]\s*|\s+)(~?\s*[^:]+?):\s*([\s\S]*)$/i;
 
 // Línea de sistema (sin remitente)
 const SYSTEM_RE = /^\[?(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}),?\s+(\d{1,2}:\d{2}(?::\d{2})?)\s*([\u202f\u00a0\s]*(?:a\.\s*m\.|p\.\s*m\.|am|pm|a\.m\.|p\.m\.))?\]?\s*(?:[-\u2013]\s*)?(.+)$/i;
