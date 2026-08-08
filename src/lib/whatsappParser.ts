@@ -64,9 +64,36 @@ const STICKER_RE = /STK-[\w\-.]+\.webp$/i;
 function stripInvisible(s: string): string {
 	if (!s) return '';
 	return s
-		.replace(/[\u200e\u200f\u202a\u202b\u202c\u202d\u202e\ufeff]/g, '')
+		.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '')
+		.replace(/[\u200e\u200f\u202a\u202b\u202c\u202d\u202e\ufeff\u200b]/g, '')
 		.replace(/[\u202f\u00a0]/g, ' ')
 		.trim();
+}
+
+function decodeTxtBuffer(buf: Uint8Array): string {
+	if (!buf || buf.length === 0) return '';
+	// Detectar BOM UTF-16LE (0xFF 0xFE)
+	if (buf.length >= 2 && buf[0] === 0xFF && buf[1] === 0xFE) {
+		return new TextDecoder('utf-16le').decode(buf);
+	}
+	// Detectar BOM UTF-16BE (0xFE 0xFF)
+	if (buf.length >= 2 && buf[0] === 0xFE && buf[1] === 0xFF) {
+		return new TextDecoder('utf-16be').decode(buf);
+	}
+	// Detectar UTF-16LE sin BOM (común en exportaciones iPhone/Windows):
+	// Cada segundo byte es un caracter nulo 0x00
+	let nullsInOdd = 0;
+	const sample = Math.min(buf.length, 1000);
+	for (let i = 1; i < sample; i += 2) {
+		if (buf[i] === 0x00) nullsInOdd++;
+	}
+	if (nullsInOdd > sample / 4) {
+		return new TextDecoder('utf-16le').decode(buf);
+	}
+
+	// Decodificación UTF-8 por defecto, eliminando nulos
+	const decoded = new TextDecoder('utf-8', { fatal: false }).decode(buf);
+	return decoded.replace(/\x00/g, '');
 }
 
 function normalizeAMPM(hour: number, minute: number, ampm: string | undefined): { h: number; m: number } {
@@ -164,26 +191,36 @@ async function parseTxt(
 	}
 
 	while (lineNum < lines.length) {
-		const raw = lines[lineNum];
+		const rawLine = lines[lineNum];
 		lineNum++;
-		if (!raw.trim()) continue;
+		if (!rawLine || !rawLine.trim()) continue;
+
+		const raw = stripInvisible(rawLine);
+		if (!raw) continue;
 
 		const match = LINE_RE.exec(raw);
 		if (match) {
 			const [, dateStr, timeStr, ampmRaw, senderName, msgText] = match;
 			const parsed = parseDate(dateStr, timeStr, ampmRaw?.trim());
 			if (!parsed) {
-				warnings.push({ lineNumber: lineNum, rawLine: raw, reason: 'unparseable-date' });
+				warnings.push({ lineNumber: lineNum, rawLine, reason: 'unparseable-date' });
 				continue;
 			}
 
-			// Acumular líneas de continuación
+			// Acumular líneas de continuación solo para mensajes de texto sin adjunto
 			let fullText = msgText;
-			while (lineNum < lines.length) {
-				const next = lines[lineNum];
-				if (LINE_RE.test(next) || SYSTEM_RE.test(next)) break;
-				fullText += '\n' + next;
-				lineNum++;
+			const isAttachmentLine = MEDIA_EXTRACT_RE.test(msgText) || OMITTED_RE.test(msgText) || ATTACHED_LABEL_RE.test(msgText);
+
+			if (!isAttachmentLine) {
+				while (lineNum < lines.length) {
+					const nextLine = lines[lineNum];
+					if (!nextLine) { lineNum++; continue; }
+					const next = stripInvisible(nextLine);
+					if (LINE_RE.test(next) || SYSTEM_RE.test(next)) break;
+					if (/^\[?\d{1,2}[\/.\-]\d{1,2}[\/.\-]/.test(next)) break;
+					fullText += '\n' + next;
+					lineNum++;
+				}
 			}
 
 			const cleanSender = senderName.replace(/^~\s*/, '').trim();
@@ -379,15 +416,8 @@ export async function parseWhatsAppFile(file: File): Promise<ParsedChat> {
 			const baseName = stripInvisible(rawBase);
 
 			if (baseName.toLowerCase().endsWith('.txt')) {
-				try {
-					let raw = await entry.async('text');
-					if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1);
-					txtContent = raw;
-				} catch {
-					const buf = await entry.async('uint8array');
-					txtContent = new TextDecoder('utf-8', { fatal: false }).decode(buf);
-					if (txtContent.charCodeAt(0) === 0xFEFF) txtContent = txtContent.slice(1);
-				}
+				const buf = await entry.async('uint8array');
+				txtContent = decodeTxtBuffer(buf);
 			} else {
 				const arrayBuffer = await entry.async('arraybuffer');
 				const mimeType = guessMime(baseName);
@@ -405,7 +435,8 @@ export async function parseWhatsAppFile(file: File): Promise<ParsedChat> {
 		return parseTxt(txtContent, mediaFiles, file.name);
 
 	} else if (name.endsWith('.txt')) {
-		const text = await file.text();
+		const buf = new Uint8Array(await file.arrayBuffer());
+		const text = decodeTxtBuffer(buf);
 		return parseTxt(text, new Map(), file.name);
 	} else {
 		throw new Error('Formato no compatible. Usa un .zip o .txt exportado de WhatsApp.');

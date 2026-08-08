@@ -650,15 +650,18 @@ function drawCoverPage(pdf: jsPDF, meta: ChatMeta, options?: PdfExportOptions) {
 	setFill(pdf, theme.pillBg);
 	roundedRect(pdf, MARGIN, metaBoxY, CONTENT_W, 36, 2.5, 'F');
 
+	const cleanTitle = (meta.title || '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F\u200e\u200f\u202a\u202b\u202c\u202d\u202e\ufeff\u200b]/g, '').trim() || 'Chat de WhatsApp';
+	const cleanSource = (meta.sourceFileName || '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F\u200e\u200f\u202a\u202b\u202c\u202d\u202e\ufeff\u200b]/g, '').trim() || 'WhatsApp_Chat.zip';
+
 	pdf.setFont('helvetica', 'bold');
 	pdf.setFontSize(12);
 	setTexHex(pdf, theme.bubbleInText);
-	pdf.text(meta.title, MARGIN + 8, metaBoxY + 10);
+	pdf.text(cleanTitle, MARGIN + 8, metaBoxY + 10);
 
 	pdf.setFont('helvetica', 'normal');
 	pdf.setFontSize(9.5);
 	setTexHex(pdf, theme.metaColor);
-	pdf.text(`Origen: ${meta.sourceFileName}`, MARGIN + 8, metaBoxY + 18);
+	pdf.text(`Origen: ${cleanSource}`, MARGIN + 8, metaBoxY + 18);
 	pdf.text(`Fecha de procesamiento: ${new Date(meta.parsedAt).toLocaleString('es-ES')}`, MARGIN + 8, metaBoxY + 26);
 
 	if (options?.caseNumber || options?.investigatorName || options?.courtInstitution) {
