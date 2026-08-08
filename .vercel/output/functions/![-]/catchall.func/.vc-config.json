@@ -1,0 +1,10 @@
+{
+	"runtime": "nodejs20.x",
+	"handler": "..\\..\\..\\..\\..\\..\\..\\Users\\beatr\\OneDrive\\Escritorio\\evidence-chat-viewer\\evidence-chat-viewer\\.svelte-kit\\vercel-tmp\\index.js",
+	"launcherType": "Nodejs",
+	"experimentalResponseStreaming": true,
+	"framework": {
+		"slug": "sveltekit",
+		"version": "2.70.2"
+	}
+}
