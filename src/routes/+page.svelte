@@ -61,8 +61,8 @@
 		loadUserSessionData(user.username, user.pin);
 	}
 
-	function loadUserSessionData(username: string, pin: string) {
-		const loaded = loadUserCasesFromCloud(username, pin);
+	async function loadUserSessionData(username: string, pin: string) {
+		const loaded = await loadUserCasesFromCloud(username, pin);
 		if (loaded.cases.length > 0) {
 			cases = loaded.cases;
 			loaded.caseDataMap.forEach((v, k) => caseDataMap.set(k, v));
@@ -119,6 +119,15 @@
 	}
 
 	async function handleFilesDropped(files: FileList) {
+		if (!user || !user.isLoggedIn) {
+			showAuthModal = true;
+			toastMessage = '¡Por favor regístrate o inicia sesión!';
+			toastDetails = 'Debes crear tu perfil o acceder con tu usuario y PIN para que tus archivos .ZIP no se pierdan.';
+			toastType = 'info';
+			showToast = true;
+			return;
+		}
+
 		const file = Array.from(files).find(
 			(f) => f.name.toLowerCase().endsWith('.zip') || f.name.toLowerCase().endsWith('.txt')
 		);
@@ -168,9 +177,9 @@
 			// Guardar en el mapa para no perder al cambiar de caso
 			caseDataMap.set(caseId, { meta: result.meta, messages: result.messages, days: result.days });
 
-			// Guardar en la nube si hay sesión activa
+			// Guardar en la nube local (IndexedDB) de forma asíncrona y segura
 			if (user && user.isLoggedIn) {
-				saveUserCasesToCloud(user.username, user.pin, cases, caseDataMap);
+				await saveUserCasesToCloud(user.username, user.pin, cases, caseDataMap);
 			}
 
 			filter = { year: null, month: null, day: null, searchQuery: '', onlyWithMedia: false };
