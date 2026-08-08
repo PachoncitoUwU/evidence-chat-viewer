@@ -27,8 +27,22 @@
 	type MsgItem  = { type: 'msg'; msg: ChatMessage };
 	type FeedItem = DatePill | MsgItem;
 
+	const CHUNK_SIZE = 250;
+	let renderCount = CHUNK_SIZE;
+
 	$: visibleMessages = messages.filter(m => !$hiddenMediaStore.has(m.id));
-	$: grouped = buildGrouped(visibleMessages);
+	$: groupedAll = buildGrouped(visibleMessages);
+	$: showLoadMore = groupedAll.length > renderCount;
+	$: remainingCount = groupedAll.length - renderCount;
+	$: displayedGrouped = showLoadMore ? groupedAll.slice(groupedAll.length - renderCount) : groupedAll;
+
+	function loadMoreMessages() {
+		renderCount += CHUNK_SIZE;
+	}
+
+	function loadAllMessages() {
+		renderCount = groupedAll.length;
+	}
 
 	function buildGrouped(msgs: ChatMessage[]): FeedItem[] {
 		const result: FeedItem[] = [];
@@ -56,7 +70,10 @@
 		if (feedEl) feedEl.scrollTop = feedEl.scrollHeight;
 	}
 
-	$: if (messages) scrollToBottom();
+	$: if (messages) {
+		renderCount = CHUNK_SIZE;
+		scrollToBottom();
+	}
 	onMount(scrollToBottom);
 
 	// Background style: use chatBg from config or fallback to WhatsApp dark
@@ -146,7 +163,7 @@
 
 	<!-- ── Messages feed ── -->
 	<div class="feed-scroll" bind:this={feedEl} style={feedBgStyle}>
-		{#if grouped.length === 0}
+		{#if displayedGrouped.length === 0}
 			<div class="empty-state">
 				{#if filter.searchQuery || filter.day || filter.month}
 					<p>Sin resultados para este filtro.</p>
@@ -155,7 +172,18 @@
 				{/if}
 			</div>
 		{:else}
-			{#each grouped as item (item.type === 'msg' ? item.msg.id : item.key)}
+			{#if showLoadMore}
+				<div class="load-more-bar">
+					<button class="load-more-btn" on:click={loadMoreMessages}>
+						⬆️ Cargar 250 mensajes anteriores ({remainingCount.toLocaleString('es-ES')} restantes)
+					</button>
+					<button class="load-all-btn" on:click={loadAllMessages}>
+						⚡ Cargar todos ({groupedAll.length.toLocaleString('es-ES')})
+					</button>
+				</div>
+			{/if}
+
+			{#each displayedGrouped as item (item.type === 'msg' ? item.msg.id : item.key)}
 				{#if item.type === 'date'}
 					<div class="date-pill">
 						<span>{item.label}</span>
@@ -385,5 +413,44 @@
 	.feed-scroll::-webkit-scrollbar-thumb {
 		background: rgba(0,0,0,0.18);
 		border-radius: 999px;
+	}
+
+	.load-more-bar {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 10px;
+		margin: 12px auto;
+		padding: 4px 12px;
+	}
+	.load-more-btn {
+		background: #00a884;
+		color: #ffffff;
+		border: none;
+		border-radius: 20px;
+		padding: 7px 16px;
+		font-size: 12.5px;
+		font-weight: 600;
+		cursor: pointer;
+		box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+		transition: all 0.15s ease;
+	}
+	.load-more-btn:hover {
+		background: #008f70;
+		transform: translateY(-1px);
+	}
+	.load-all-btn {
+		background: rgba(0,0,0,0.06);
+		color: #54656f;
+		border: 1px solid rgba(0,0,0,0.12);
+		border-radius: 20px;
+		padding: 6px 12px;
+		font-size: 11.5px;
+		cursor: pointer;
+	}
+	:global([data-theme="dark"] .load-all-btn) {
+		background: rgba(255,255,255,0.08);
+		color: #8696a0;
+		border-color: rgba(255,255,255,0.12);
 	}
 </style>

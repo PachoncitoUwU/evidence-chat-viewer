@@ -218,12 +218,17 @@ async function parseTxt(
 
 						if (blob) {
 							sizeBytes = blob.size;
-							previewUrl = await new Promise<string>((resolve) => {
-								const reader = new FileReader();
-								reader.onloadend = () => resolve((reader.result as string) || '');
-								reader.onerror = () => resolve('');
-								reader.readAsDataURL(blob);
-							});
+							// Convertir a Data URL solo si el archivo es menor a 4MB (evita congelar con videos o ZIPs de 1.69GB)
+							if (blob.size < 4 * 1024 * 1024 && (kind === 'image' || isSticker || kind === 'audio')) {
+								previewUrl = await new Promise<string>((resolve) => {
+									const reader = new FileReader();
+									reader.onloadend = () => resolve((reader.result as string) || '');
+									reader.onerror = () => resolve('');
+									reader.readAsDataURL(blob);
+								});
+							} else {
+								previewUrl = URL.createObjectURL(blob);
+							}
 						}
 
 						attachment = {
