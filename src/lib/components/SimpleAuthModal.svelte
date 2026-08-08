@@ -3,6 +3,7 @@
 	import { authStore } from '$lib/stores/authStore';
 	import { registerUserInCloud, verifyUserCredentials } from '$lib/cloudStorage';
 	import { User, Lock, LogIn, UserPlus, ShieldCheck, KeyRound } from 'lucide-svelte';
+	import { APP_VERSION, BUILD_COMMIT } from '$lib/version';
 
 	export let show: boolean = false;
 
@@ -79,6 +80,7 @@
 				<div class="badge">
 					<ShieldCheck size={16} />
 					<span>Perfil de Evidencias Digitales</span>
+					<span class="v-tag">Vercel {APP_VERSION} ({BUILD_COMMIT})</span>
 				</div>
 				<h2>{mode === 'register' ? 'Registrar Nuevo Perfil' : 'Iniciar Sesión'}</h2>
 				<p>
@@ -253,6 +255,16 @@
 		padding: 4px 12px;
 		border-radius: 20px;
 		margin-bottom: 10px;
+	}
+
+	.v-tag {
+		background: #4f46e5;
+		color: #ffffff;
+		font-size: 10px;
+		font-weight: 700;
+		padding: 2px 7px;
+		border-radius: 10px;
+		margin-left: 4px;
 	}
 
 	:global([data-theme="dark"]) .badge {

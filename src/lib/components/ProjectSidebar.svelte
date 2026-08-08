@@ -2,6 +2,7 @@
 	import { FolderOpen, Plus, MessageCircle, Search, User, LogIn, LogOut, ShieldCheck } from 'lucide-svelte';
 	import type { EvidenceCase } from '$types/chat.types';
 	import { authStore } from '$lib/stores/authStore';
+	import { APP_VERSION, BUILD_COMMIT, BUILD_DATE } from '$lib/version';
 
 	export let cases: EvidenceCase[] = [];
 	export let activeCaseId: string | null = null;
@@ -24,8 +25,9 @@
 				<MessageCircle size={18} color="white" strokeWidth={2} />
 			</div>
 			<span class="brand-name">Chat Viewer</span>
+			<span class="version-pill" title="Compilación en vivo de Vercel ({BUILD_DATE})">{APP_VERSION}</span>
 		</div>
-		<p class="brand-subtitle">Visor de chats de WhatsApp</p>
+		<p class="brand-subtitle">Visor de evidencias · <span class="commit-tag">Vercel: {BUILD_COMMIT}</span></p>
 	</header>
 
 	<div class="user-bar">
@@ -77,6 +79,13 @@
 			</div>
 		{/each}
 	</nav>
+
+	<footer class="sidebar-footer">
+		<div class="version-footer-badge" title="Fecha de actualización: {BUILD_DATE}">
+			<span class="pulse-dot"></span>
+			<span>Vercel en vivo: <strong>{APP_VERSION}</strong> (<code class="commit-code">{BUILD_COMMIT}</code>)</span>
+		</div>
+	</footer>
 </aside>
 
 <style>
@@ -297,5 +306,64 @@
 		display: flex;
 		align-items: center;
 		gap: 3px;
+	}
+
+	.version-pill {
+		margin-left: auto;
+		background: #4f46e5;
+		color: white;
+		font-size: 10.5px;
+		font-weight: 700;
+		padding: 2px 7px;
+		border-radius: 12px;
+		letter-spacing: 0.02em;
+	}
+
+	.commit-tag {
+		font-family: monospace;
+		color: #4f46e5;
+		font-weight: 600;
+	}
+
+	.sidebar-footer {
+		margin-top: auto;
+		padding-top: 8px;
+		border-top: 1px solid var(--hairline);
+	}
+
+	.version-footer-badge {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 11px;
+		color: var(--ink-60, #667781);
+		background: var(--void, #f8fafc);
+		padding: 6px 10px;
+		border-radius: 6px;
+		border: 1px solid var(--hairline, #e2e8f0);
+	}
+
+	.commit-code {
+		font-family: monospace;
+		font-weight: 600;
+		color: #4f46e5;
+		background: rgba(79, 70, 229, 0.08);
+		padding: 1px 4px;
+		border-radius: 4px;
+	}
+
+	.pulse-dot {
+		width: 7px;
+		height: 7px;
+		background: #22c55e;
+		border-radius: 50%;
+		box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
+		animation: pulseDot 2s infinite;
+	}
+
+	@keyframes pulseDot {
+		0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+		70% { transform: scale(1); box-shadow: 0 0 0 5px rgba(34, 197, 94, 0); }
+		100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
 	}
 </style>
