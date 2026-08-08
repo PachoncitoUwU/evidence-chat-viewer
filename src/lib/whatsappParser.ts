@@ -202,47 +202,46 @@ async function parseTxt(
 				// Buscar patrón de archivo multimedia en el texto del mensaje
 				const fileMatch = MEDIA_EXTRACT_RE.exec(cleanFullText);
 				if (fileMatch) {
-					const fileName = (fileMatch[1] || fileMatch[2]).trim();
-					const cleanName = stripInvisible(fileName);
-					const kind = detectMediaKind(cleanName);
-					const isSticker = STICKER_RE.test(cleanName) || cleanName.toLowerCase().startsWith('stk-');
+					const rawMatchedFile = fileMatch.slice(1).find((g) => g && typeof g === 'string' && g.trim().length > 0);
+					if (rawMatchedFile) {
+						const fileName = rawMatchedFile.trim();
+						const cleanName = stripInvisible(fileName);
+						const kind = detectMediaKind(cleanName);
+						const isSticker = STICKER_RE.test(cleanName) || cleanName.toLowerCase().startsWith('stk-');
 
-					// Buscar blob en la colección extraída del ZIP
-					const blob = normalizedMediaMap.get(cleanName.toLowerCase())
-						?? normalizedMediaMap.get(fileName.toLowerCase());
+						// Buscar blob en la colección extraída del ZIP
+						const blob = normalizedMediaMap.get(cleanName.toLowerCase())
+							?? normalizedMediaMap.get(fileName.toLowerCase());
 
-					let previewUrl: string | null = null;
-					let sizeBytes: number | null = null;
+						let previewUrl: string | null = null;
+						let sizeBytes: number | null = null;
 
-					if (blob) {
-						sizeBytes = blob.size;
-						if (kind === 'image' || isSticker || kind === 'audio') {
+						if (blob) {
+							sizeBytes = blob.size;
 							previewUrl = await new Promise<string>((resolve) => {
 								const reader = new FileReader();
-								reader.onloadend = () => resolve(reader.result as string || '');
+								reader.onloadend = () => resolve((reader.result as string) || '');
 								reader.onerror = () => resolve('');
 								reader.readAsDataURL(blob);
 							});
-						} else {
-							previewUrl = URL.createObjectURL(blob);
 						}
+
+						attachment = {
+							fileName: cleanName,
+							kind,
+							previewUrl,
+							sizeBytes,
+							durationSeconds: null,
+							status: blob ? 'linked' : 'missing',
+							isSticker
+						};
+
+						// Limpiar el texto eliminado el nombre del archivo y la etiqueta de adjunto
+						textClean = fullText
+							.replace(MEDIA_EXTRACT_RE, '')
+							.replace(ATTACHED_LABEL_RE, '')
+							.trim();
 					}
-
-					attachment = {
-						fileName: cleanName,
-						kind,
-						previewUrl,
-						sizeBytes,
-						durationSeconds: null,
-						status: blob ? 'linked' : 'missing',
-						isSticker
-					};
-
-					// Limpiar el texto eliminado el nombre del archivo y la etiqueta de adjunto
-					textClean = fullText
-						.replace(MEDIA_EXTRACT_RE, '')
-						.replace(ATTACHED_LABEL_RE, '')
-						.trim();
 				}
 			}
 
