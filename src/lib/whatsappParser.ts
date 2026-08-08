@@ -36,24 +36,24 @@ function detectCallInfo(text: string): CallInfo | null {
 
 // ── Regex ──────────────────────────────────────────────────────────
 
-// Línea de mensaje con remitente (soporta fechas DD/MM/YYYY, HH:MM, am/pm, coma opcional, espacios finos Unicode)
-const LINE_RE = /^(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}),?\s+(\d{1,2}:\d{2}(?::\d{2})?)\s*([\u202f\u00a0\s]*(?:a\.\s*m\.|p\.\s*m\.|am|pm|a\.m\.|p\.m\.))?(?:\s*[-\u2013]\s*)(.+?):\s+([\s\S]*)$/i;
+// Línea de mensaje con remitente (soporta Android e iPhone / iOS, corchetes [], segundos, AM/PM, tilde ~ en nombres, coma opcional, guion opcional)
+const LINE_RE = /^\[?(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}),?\s+(\d{1,2}:\d{2}(?::\d{2})?)\s*([\u202f\u00a0\s]*(?:a\.\s*m\.|p\.\s*m\.|am|pm|a\.m\.|p\.m\.))?\]?(?:\s*[-\u2013]\s*|\s+)(~?\s*[^:]+?):\s+([\s\S]*)$/i;
 
 // Línea de sistema (sin remitente)
-const SYSTEM_RE = /^(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}),?\s+(\d{1,2}:\d{2}(?::\d{2})?)\s*([\u202f\u00a0\s]*(?:a\.\s*m\.|p\.\s*m\.|am|pm|a\.m\.|p\.m\.))?\s*[-\u2013]\s+(.+)$/i;
+const SYSTEM_RE = /^\[?(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}),?\s+(\d{1,2}:\d{2}(?::\d{2})?)\s*([\u202f\u00a0\s]*(?:a\.\s*m\.|p\.\s*m\.|am|pm|a\.m\.|p\.m\.))?\]?\s*(?:[-\u2013]\s*)?(.+)$/i;
 
 // Multimedia omitido
 const OMITTED_RE = /<Multimedia omitido>|<Media omitted>|<adjunto omitido>|<attached omitted>/i;
 
-// Texto que acompaña adjuntos en WhatsApp: "(archivo adjunto)", "(file attached)", etc.
+// Texto que acompaña adjuntos en WhatsApp iOS/Android: "(archivo adjunto)", "(file attached)", "<adjunto: ...>", "<attached: ...>", etc.
 const ATTACHED_LABEL_RE = /\(archivo adjunto\)|\(file attached\)|<adjunto:.*?>|<attached:.*?>/gi;
 
 // Extensiones reconocidas
 const FILE_EXT_PATTERN = '(?:jpg|jpeg|png|gif|webp|bmp|svg|mp4|mov|avi|webm|3gp|mkv|flv|opus|mp3|ogg|aac|m4a|wav|flac|wma|pdf|docx?|xlsx?|pptx?|txt|csv|zip|rar|7z|vcf|psc)';
 
-// Regex para extraer nombres de archivo multimedia de cualquier línea
+// Regex para extraer nombres de archivo multimedia de cualquier línea (Android e iOS)
 const MEDIA_EXTRACT_RE = new RegExp(
-	'(?:<[a-z]+:\\s*([^>]+)>|((?:IMG|VID|PTT|AUD|DOC|STK|VIDEO|AUDIO|GIF|VOICE)-[\\w\\-.]+\\.\\w+|[\\w\\-. \\u00c0-\\u024f]+\\.' + FILE_EXT_PATTERN + '))',
+	'(?:<adjunto:\\s*([^>]+)>|<attached:\\s*([^>]+)>|<[a-z]+:\\s*([^>]+)>|((?:IMG|VID|PTT|AUD|DOC|STK|VIDEO|AUDIO|GIF|VOICE|PHOTO)-[\\w\\-.]+\\.\\w+|[0-9a-fA-F\\-_.]+\\.' + FILE_EXT_PATTERN + '|[\\w\\-. \\u00c0-\\u024f]+\\.' + FILE_EXT_PATTERN + '))',
 	'i'
 );
 
@@ -186,7 +186,8 @@ async function parseTxt(
 				lineNum++;
 			}
 
-			participantSet.add(senderName.trim());
+			const cleanSender = senderName.replace(/^~\s*/, '').trim();
+			participantSet.add(cleanSender);
 
 			// ── Detectar adjunto ──
 			let attachment: MediaAttachment | null = null;
@@ -257,7 +258,7 @@ async function parseTxt(
 			messages.push({
 				id: `msg-${idx++}-${parsed.tsMs}`,
 				date: parsed.iso, time: parsed.timeIso, timestampMs: parsed.tsMs,
-				senderName: senderName.trim(), senderRole: 'counterpart',
+				senderName: cleanSender, senderRole: 'counterpart',
 				text: textClean, isSystemEvent: false, wasEdited,
 				attachment, callInfo, sourceLine: raw, sourceLineNumber: lineNum
 			});
