@@ -42,8 +42,8 @@ const LINE_RE = /^\[?(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}),?\s+(\d{1,2}:\d{2}(?:
 // Línea de sistema (sin remitente)
 const SYSTEM_RE = /^\[?(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}),?\s+(\d{1,2}:\d{2}(?::\d{2})?)\s*([\u202f\u00a0\s]*(?:a\.\s*m\.|p\.\s*m\.|am|pm|a\.m\.|p\.m\.))?\]?\s*(?:[-\u2013]\s*)?(.+)$/i;
 
-// Multimedia omitido
-const OMITTED_RE = /<Multimedia omitido>|<Media omitted>|<adjunto omitido>|<attached omitted>/i;
+// Multimedia omitido (Android e iPhone / iOS en español e inglés)
+const OMITTED_RE = /<Multimedia omitido>|<Media omitted>|<adjunto omitido>|<attached omitted>|video omitido|imagen omitida|foto omitida|audio omitido|sticker omitido|documento omitido|contacto omitido|video omitted|image omitted|photo omitted|audio omitted|sticker omitted|document omitted/i;
 
 // Texto que acompaña adjuntos en WhatsApp iOS/Android: "(archivo adjunto)", "(file attached)", "<adjunto: ...>", "<attached: ...>", etc.
 const ATTACHED_LABEL_RE = /\(archivo adjunto\)|\(file attached\)|<adjunto:.*?>|<attached:.*?>/gi;
@@ -245,11 +245,13 @@ async function parseTxt(
 				}
 			}
 
-			// Limpiar texto residual
+			// Limpiar texto residual y detectar mensajes editados (Android e iPhone / iOS)
+			const EDITED_RE = /<\s*(?:Se editó este mensaje|Se edito este mensaje|Este mensaje fue editado|This message was edited)\.?\s*>/gi;
+			const wasEdited = EDITED_RE.test(fullText);
+
 			textClean = stripInvisible(textClean)
-				.replace(/<Este mensaje fue editado>|<This message was edited>/g, '')
+				.replace(EDITED_RE, '')
 				.trim();
-			const wasEdited = fullText.includes('<Este mensaje fue editado>') || fullText.includes('<This message was edited>');
 
 			// Detectar llamadas de WhatsApp
 			const callInfo = detectCallInfo(textClean || fullText);

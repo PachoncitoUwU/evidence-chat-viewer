@@ -331,9 +331,13 @@ async function drawMessage(
 		calculatedW = singleLineW + timeStrW + bubblePadX * 2 + 5;
 	}
 
-	// Para imágenes, ajustar la burbuja verde exactamente al ancho de la foto sin franjas laterales
+	// Para imágenes, ajustar la burbuja al ancho de la foto (o al texto si tiene pie de foto)
 	if (imgDrawW > 0) {
-		calculatedW = imgDrawW + bubblePadX * 2;
+		if (textLines.length > 0) {
+			calculatedW = Math.max(imgDrawW + bubblePadX * 2, maxLineWidth + bubblePadX * 2 + 10);
+		} else {
+			calculatedW = imgDrawW + bubblePadX * 2;
+		}
 	} else if (msg.attachment || msg.callInfo) {
 		calculatedW = Math.max(calculatedW, 46);
 	}
