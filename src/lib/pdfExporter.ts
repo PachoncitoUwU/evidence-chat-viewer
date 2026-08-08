@@ -2,10 +2,12 @@
  * pdfExporter.ts
  * ------------------------------------------------------------------
  * Generador pericial de PDF de alta calidad para evidencias de WhatsApp.
- * Renderiza chats completos idénticos a la interfaz oficial de WhatsApp
- * (modo oscuro/claro), con checks vectoriales de leído (✓✓), tarjetas de audio
- * con onda de sonido realista, imágenes fit/cover con bordes superiores redondeados,
- * protección contra cortes de página (page-breaks) e ignorando nombres en chats individuales.
+ * Optimizado para lectura digital e impresión física:
+ * - Esquinas cuadradas en imágenes con ajuste exacto de la burbuja al ancho de la foto.
+ * - Burbujas dinámicas que se reducen al tamaño exacto de textos cortos ("2", "Hola").
+ * - Tipografía aumentada a 10.5pt (13-14px) para lectura e impresión perfectas.
+ * - Tarjetas de audio fluidas (sin caja dentro de otra caja).
+ * - Protección estricta contra cortes de página.
  * ------------------------------------------------------------------
  */
 
@@ -49,15 +51,13 @@ function setTexHex(pdf: jsPDF, hex: string) {
 
 const imgCache = new Map<string, string>();
 
-/** Convierte y redimensiona un objectURL/blob URL a base64 Data URL con esquinas redondeadas para PDF */
+/** Convierte y redimensiona un objectURL/blob URL a base64 Data URL con esquinas cuadradas para PDF */
 async function urlToPngDataUrl(
 	url: string,
-	maxDim: number = 600,
-	roundedTopOnly: boolean = false
+	maxDim: number = 600
 ): Promise<string | null> {
 	if (!url) return null;
-	const cacheKey = url + (roundedTopOnly ? '_topRound' : '');
-	if (imgCache.has(cacheKey)) return imgCache.get(cacheKey)!;
+	if (imgCache.has(url)) return imgCache.get(url)!;
 	try {
 		const result = await new Promise<string | null>((resolve) => {
 			const img = new Image();
@@ -83,24 +83,7 @@ async function urlToPngDataUrl(
 					const ctx = canvas.getContext('2d');
 					if (!ctx) return resolve(null);
 
-					const radius = Math.min(w, h) * 0.05;
-					ctx.beginPath();
-					if (roundedTopOnly) {
-						ctx.moveTo(radius, 0);
-						ctx.lineTo(w - radius, 0);
-						ctx.quadraticCurveTo(w, 0, w, radius);
-						ctx.lineTo(w, h);
-						ctx.lineTo(0, h);
-						ctx.lineTo(0, radius);
-						ctx.quadraticCurveTo(0, 0, radius, 0);
-					} else {
-						if (typeof ctx.roundRect === 'function') {
-							ctx.roundRect(0, 0, w, h, radius);
-						} else {
-							ctx.rect(0, 0, w, h);
-						}
-					}
-					ctx.clip();
+					// Esquinas cuadradas estándar para la foto
 					ctx.drawImage(img, 0, 0, w, h);
 
 					const isPngOrSticker = url.includes('.webp') || url.includes('.png');
@@ -116,7 +99,7 @@ async function urlToPngDataUrl(
 			img.onerror = () => resolve(null);
 			img.src = url;
 		});
-		if (result) imgCache.set(cacheKey, result);
+		if (result) imgCache.set(url, result);
 		return result;
 	} catch {
 		return null;
@@ -169,14 +152,14 @@ function roundedRect(
 	pdf.roundedRect(x, y, w, h, r, r, style);
 }
 
-/** Dibuja el doble check azul vectorial oficial de WhatsApp (✓✓) sin usar texto "vv" */
+/** Dibuja el doble check azul vectorial oficial de WhatsApp (✓✓) sin utilizar texto "vv" */
 function drawVectorDoubleCheck(pdf: jsPDF, x: number, y: number, colorHex: string = '#53bdeb') {
 	setStroke(pdf, colorHex);
 	pdf.setLineWidth(0.35);
-	// Primer check (izquierdo)
+	// Primer check
 	pdf.line(x, y + 1.2, x + 0.9, y + 2.1);
 	pdf.line(x + 0.9, y + 2.1, x + 2.4, y);
-	// Segundo check (derecho)
+	// Segundo check
 	pdf.line(x + 1.3, y + 1.2, x + 2.2, y + 2.1);
 	pdf.line(x + 2.2, y + 2.1, x + 3.7, y);
 }
@@ -194,9 +177,6 @@ interface PdfThemeColors {
 	metaColor: string;
 	pillBg: string;
 	pillText: string;
-	audioCardBg: string;
-	audioPlayBg: string;
-	audioWaveColor: string;
 	borderColor?: string;
 }
 
@@ -212,10 +192,7 @@ function getThemeColors(theme?: 'dark' | 'light' | 'legal'): PdfThemeColors {
 			senderColor: '#00a884',
 			metaColor: '#667781',
 			pillBg: '#e1e6e3',
-			pillText: '#54656f',
-			audioCardBg: '#c8edd0',
-			audioPlayBg: '#00a884',
-			audioWaveColor: '#00a884'
+			pillText: '#54656f'
 		};
 	}
 	if (theme === 'legal') {
@@ -230,9 +207,6 @@ function getThemeColors(theme?: 'dark' | 'light' | 'legal'): PdfThemeColors {
 			metaColor: '#4b5563',
 			pillBg: '#f3f4f6',
 			pillText: '#374151',
-			audioCardBg: '#e5e7eb',
-			audioPlayBg: '#374151',
-			audioWaveColor: '#6b7280',
 			borderColor: '#d1d5db'
 		};
 	}
@@ -247,10 +221,7 @@ function getThemeColors(theme?: 'dark' | 'light' | 'legal'): PdfThemeColors {
 		senderColor: '#00a884',
 		metaColor: '#8696a0',
 		pillBg: '#182229',
-		pillText: '#cdd6db',
-		audioCardBg: '#182229',
-		audioPlayBg: '#00a884',
-		audioWaveColor: '#00a884'
+		pillText: '#cdd6db'
 	};
 }
 
@@ -274,16 +245,17 @@ async function drawMessage(
 	const textColor = isOwner ? theme.bubbleOutText : theme.bubbleInText;
 
 	const maxBubbleW = CONTENT_W * 0.72;
-	const bubblePadX = 3.8;
-	const bubblePadY = 3.2;
-	const lineH = 4.6;
+	const bubblePadX = 3.2;
+	const bubblePadY = 2.5;
+	const lineH = 4.8;
 
+	// Tipografía 10.5pt (aprox 13-14px para impresión perfecta)
 	pdf.setFont('helvetica', 'normal');
-	pdf.setFontSize(9.5); // Tipografía clara 9.5pt para legibilidad
+	pdf.setFontSize(10.5);
 
-	const innerMaxW = maxBubbleW - bubblePadX * 2 - 4;
+	const innerMaxW = maxBubbleW - bubblePadX * 2 - 2;
 
-	// Nombre del remitente (solo si es chat grupal)
+	// Remitente (solo en chats grupales)
 	const senderNameStr = (isGroup && !isOwner && msg.senderName) ? cleanPdfText(msg.senderName) : '';
 	const senderH = senderNameStr ? 4.8 : 0;
 
@@ -296,7 +268,7 @@ async function drawMessage(
 	const textH = textLines.length * lineH;
 
 	// Llamadas
-	const callH = msg.callInfo ? 9.5 : 0;
+	const callH = msg.callInfo ? 9.0 : 0;
 
 	// Adjuntos
 	let attachmentH = 0;
@@ -307,9 +279,9 @@ async function drawMessage(
 	if (msg.attachment) {
 		const att = msg.attachment;
 		if (att.status === 'omitted' || att.status === 'missing') {
-			attachmentH = 7.5;
+			attachmentH = 7.0;
 		} else if ((att.kind === 'image' || att.isSticker) && att.previewUrl) {
-			imgDataUrl = await urlToPngDataUrl(att.previewUrl, 600, true);
+			imgDataUrl = await urlToPngDataUrl(att.previewUrl, 600);
 			if (imgDataUrl) {
 				const dims = await getImgDims(imgDataUrl);
 				const maxH = att.isSticker ? 32 : 55;
@@ -319,22 +291,22 @@ async function drawMessage(
 					imgDrawH = maxH;
 					imgDrawW = (dims.w * imgDrawH) / dims.h;
 				}
-				attachmentH = imgDrawH + 3.5;
+				attachmentH = imgDrawH + 2.0;
 			} else {
-				attachmentH = 8.5;
+				attachmentH = 8.0;
 			}
 		} else if (att.kind === 'video') {
-			attachmentH = 14;
+			attachmentH = 13.0;
 		} else if (att.kind === 'audio') {
-			attachmentH = 14;
+			attachmentH = 11.5;
 		} else if (att.kind === 'document') {
-			attachmentH = 12.5;
+			attachmentH = 11.5;
 		} else {
-			attachmentH = 7.5;
+			attachmentH = 7.0;
 		}
 	}
 
-	const metaH = 4.2;
+	const metaH = (textLines.length === 1 && !msg.attachment && !msg.callInfo) ? 0 : 3.8;
 	const bubbleH = senderH + callH + attachmentH + textH + metaH + bubblePadY * 2;
 
 	let maxLineWidth = 0;
@@ -345,22 +317,29 @@ async function drawMessage(
 	}
 
 	pdf.setFont('helvetica', 'normal');
-	pdf.setFontSize(9.5);
+	pdf.setFontSize(10.5);
 	textLines.forEach((line) => {
 		maxLineWidth = Math.max(maxLineWidth, pdf.getTextWidth(line));
 	});
 
-	if (imgDrawW > 0) {
-		maxLineWidth = Math.max(maxLineWidth, imgDrawW);
-	} else if (msg.attachment || msg.callInfo) {
-		maxLineWidth = Math.max(maxLineWidth, 48);
+	// Ancho dinámico apretado para textos cortos ("2", "Hola")
+	const timeStrW = pdf.getTextWidth(time) + (isOwner ? 5.5 : 1.5);
+	let calculatedW = maxLineWidth + timeStrW + bubblePadX * 2 + 4;
+
+	if (textLines.length === 1 && !msg.attachment && !msg.callInfo) {
+		const singleLineW = pdf.getTextWidth(textLines[0]);
+		calculatedW = singleLineW + timeStrW + bubblePadX * 2 + 5;
 	}
 
-	const calculatedW = maxLineWidth + bubblePadX * 2 + 12;
-	const bubbleW = Math.max(
-		maxBubbleW * 0.38,
-		Math.min(maxBubbleW, calculatedW)
-	);
+	// Para imágenes, ajustar la burbuja verde exactamente al ancho de la foto sin franjas laterales
+	if (imgDrawW > 0) {
+		calculatedW = imgDrawW + bubblePadX * 2;
+	} else if (msg.attachment || msg.callInfo) {
+		calculatedW = Math.max(calculatedW, 46);
+	}
+
+	// Reducción dinámica: mínimo 22mm para textos muy cortos ("2")
+	const bubbleW = Math.max(22, Math.min(maxBubbleW, calculatedW));
 
 	const bubbleX = isOwner
 		? MARGIN + CONTENT_W - bubbleW
@@ -371,25 +350,25 @@ async function drawMessage(
 	if (theme.borderColor) {
 		setStroke(pdf, theme.borderColor);
 		pdf.setLineWidth(0.2);
-		roundedRect(pdf, bubbleX, y, bubbleW, bubbleH, 2.5, 'FD');
+		roundedRect(pdf, bubbleX, y, bubbleW, bubbleH, 2.2, 'FD');
 	} else {
-		roundedRect(pdf, bubbleX, y, bubbleW, bubbleH, 2.5, 'F');
+		roundedRect(pdf, bubbleX, y, bubbleW, bubbleH, 2.2, 'F');
 	}
 
-	// ── Cola de burbuja (Triangulito limpio sin artefactos) ──
+	// ── Cola de burbuja (Triangulito limpio) ──
 	setFill(pdf, bubbleBg);
 	if (isOwner) {
 		pdf.triangle(
 			bubbleX + bubbleW, y + 0.5,
-			bubbleX + bubbleW + 2.5, y,
-			bubbleX + bubbleW, y + 3.8,
+			bubbleX + bubbleW + 2.2, y,
+			bubbleX + bubbleW, y + 3.5,
 			'F'
 		);
 	} else {
 		pdf.triangle(
 			bubbleX, y + 0.5,
-			bubbleX - 2.5, y,
-			bubbleX, y + 3.8,
+			bubbleX - 2.2, y,
+			bubbleX, y + 3.5,
 			'F'
 		);
 	}
@@ -401,7 +380,7 @@ async function drawMessage(
 		pdf.setFont('helvetica', 'bold');
 		pdf.setFontSize(8.5);
 		setTexHex(pdf, theme.senderColor);
-		pdf.text(senderNameStr, bubbleX + bubblePadX + 1, drawY + 3.0);
+		pdf.text(senderNameStr, bubbleX + bubblePadX + 0.5, drawY + 2.8);
 		drawY += senderH;
 	}
 
@@ -410,12 +389,12 @@ async function drawMessage(
 		const call = msg.callInfo;
 		const isMissed = call.status === 'missed' || call.status === 'declined';
 		setFill(pdf, isMissed ? '#fef2f2' : (theme.name === 'light' ? '#eefbf0' : '#182229'));
-		roundedRect(pdf, bubbleX + bubblePadX, drawY, bubbleW - bubblePadX * 2, 8.5, 1.8, 'F');
+		roundedRect(pdf, bubbleX + bubblePadX, drawY, bubbleW - bubblePadX * 2, 8.0, 1.8, 'F');
 
-		const icX = bubbleX + bubblePadX + 4;
-		const icY = drawY + 4.25;
+		const icX = bubbleX + bubblePadX + 3.5;
+		const icY = drawY + 4.0;
 		setFill(pdf, isMissed ? '#dc2626' : '#00a884');
-		pdf.circle(icX, icY, 2.8, 'F');
+		pdf.circle(icX, icY, 2.6, 'F');
 
 		pdf.setFont('helvetica', 'bold');
 		pdf.setFontSize(8);
@@ -426,20 +405,20 @@ async function drawMessage(
 			? (call.type === 'video' ? 'Videollamada perdida' : 'Llamada de voz perdida')
 			: (call.type === 'video' ? 'Videollamada' : 'Llamada de voz');
 
-		drawSingleLineText(pdf, title, bubbleX + bubblePadX + 9, drawY + 5.5, bubbleW - bubblePadX * 2 - 11);
+		drawSingleLineText(pdf, title, bubbleX + bubblePadX + 8, drawY + 5.2, bubbleW - bubblePadX * 2 - 10);
 		drawY += callH;
 	}
 
 	// ── Adjuntos ──
 	if (msg.attachment) {
 		const att = msg.attachment;
-		const attX = isOwner ? bubbleX + bubbleW - bubblePadX - imgDrawW : bubbleX + bubblePadX;
+		const attX = bubbleX + bubblePadX;
 
 		if (att.status === 'omitted') {
 			pdf.setFont('helvetica', 'italic');
 			pdf.setFontSize(8);
 			setTexHex(pdf, theme.metaColor);
-			pdf.text('📷 [Multimedia omitido]', bubbleX + bubblePadX + 1, drawY + 4);
+			pdf.text('📷 [Multimedia omitido]', bubbleX + bubblePadX + 0.5, drawY + 3.8);
 			drawY += attachmentH;
 		} else if (att.status === 'missing') {
 			pdf.setFont('helvetica', 'normal');
@@ -448,110 +427,95 @@ async function drawMessage(
 			drawSingleLineText(
 				pdf,
 				att.fileName ? `⚠️ ${att.fileName} (no encontrado)` : '⚠️ Archivo no encontrado',
-				bubbleX + bubblePadX + 1,
-				drawY + 4,
-				bubbleW - bubblePadX * 2 - 2
+				bubbleX + bubblePadX + 0.5,
+				drawY + 3.8,
+				bubbleW - bubblePadX * 2 - 1
 			);
 			drawY += attachmentH;
 		} else if ((att.kind === 'image' || att.isSticker) && imgDataUrl) {
 			try {
 				const format = imgDataUrl.startsWith('data:image/jpeg') ? 'JPEG' : 'PNG';
+				// Foto con esquinas totalmente cuadradas ajustada exacto al contenedor
 				pdf.addImage(imgDataUrl, format, attX, drawY, imgDrawW, imgDrawH);
 			} catch {
 				setFill(pdf, '#2a3942');
-				pdf.rect(bubbleX + bubblePadX, drawY, innerMaxW, imgDrawH, 'F');
+				pdf.rect(attX, drawY, imgDrawW, imgDrawH, 'F');
 				pdf.setFontSize(7.5);
 				setTexHex(pdf, theme.metaColor);
-				drawSingleLineText(pdf, att.fileName || 'Imagen', bubbleX + bubblePadX + 2, drawY + imgDrawH / 2, innerMaxW - 4);
+				drawSingleLineText(pdf, att.fileName || 'Imagen', attX + 2, drawY + imgDrawH / 2, imgDrawW - 4);
 			}
-			drawY += imgDrawH + 3.5;
+			drawY += imgDrawH + 2.0;
 		} else if (att.kind === 'video') {
 			setFill(pdf, theme.name === 'light' ? '#e2ebd5' : '#0d1b22');
-			roundedRect(pdf, bubbleX + bubblePadX, drawY, bubbleW - bubblePadX * 2, 12, 1.8, 'F');
-			const cx = bubbleX + bubblePadX + 6;
-			const cy = drawY + 6;
+			roundedRect(pdf, bubbleX + bubblePadX, drawY, bubbleW - bubblePadX * 2, 11, 1.8, 'F');
+			const cx = bubbleX + bubblePadX + 5.5;
+			const cy = drawY + 5.5;
 			setFill(pdf, '#00a884');
-			pdf.circle(cx, cy, 3.5, 'F');
+			pdf.circle(cx, cy, 3.2, 'F');
 			setFill(pdf, '#ffffff');
-			pdf.triangle(cx - 1, cy - 1.8, cx - 1, cy + 1.8, cx + 2, cy, 'F');
+			pdf.triangle(cx - 0.9, cy - 1.6, cx - 0.9, cy + 1.6, cx + 1.8, cy, 'F');
 			pdf.setFontSize(8);
 			setTexHex(pdf, textColor);
-			drawSingleLineText(pdf, att.fileName || 'Video', bubbleX + bubblePadX + 12, drawY + 7.5, bubbleW - bubblePadX * 2 - 14);
+			drawSingleLineText(pdf, att.fileName || 'Video', bubbleX + bubblePadX + 11, drawY + 7.0, bubbleW - bubblePadX * 2 - 13);
 			drawY += attachmentH;
 
-		// ── REPRODUCTOR DE NOTA DE VOZ (AUDIO) REALISTA ──
+		// ── REPRODUCTOR DE NOTA DE VOZ (AUDIO) FLUIDO (Sin caja secundaria) ──
 		} else if (att.kind === 'audio') {
-			const cardW = bubbleW - bubblePadX * 2;
-			const cardH = 13.5;
-			setFill(pdf, theme.name === 'light' ? '#c8edd0' : '#182229');
-			roundedRect(pdf, bubbleX + bubblePadX, drawY, cardW, cardH, 2.5, 'F');
-
-			// Avatar de perfil (izq)
-			const avX = bubbleX + bubblePadX + 5.5;
-			const avY = drawY + 6.75;
-			setFill(pdf, theme.name === 'light' ? '#ffffff' : '#26343d');
-			pdf.circle(avX, avY, 3.8, 'F');
-
-			// Icono de micrófono vectorial en avatar
+			// Botón Play verde circular a la izquierda
+			const playX = bubbleX + bubblePadX + 4.5;
+			const playY = drawY + 5.5;
 			setFill(pdf, '#00a884');
-			pdf.rect(avX - 0.9, avY - 2.0, 1.8, 2.6, 'F');
-
-			// Botón Play verde circular
-			const playX = bubbleX + bubblePadX + 15.5;
-			const playY = drawY + 6.75;
-			setFill(pdf, '#00a884');
-			pdf.circle(playX, playY, 4.2, 'F');
+			pdf.circle(playX, playY, 4.0, 'F');
 			setFill(pdf, '#ffffff');
-			pdf.triangle(playX - 1.2, playY - 2.2, playX - 1.2, playY + 2.2, playX + 2.4, playY, 'F');
+			pdf.triangle(playX - 1.2, playY - 2.0, playX - 1.2, playY + 2.0, playX + 2.2, playY, 'F');
 
-			// Barritas verticales de onda de sonido (waveform realista)
-			const barHeights = [2.2, 4.5, 1.8, 5.2, 3.2, 5.8, 2.5, 4.8, 3.5, 2.0, 4.2, 3.0, 5.0, 2.2, 4.0, 3.0, 1.8, 3.2];
+			// Barritas verticales de onda de sonido simples y limpias
+			const barHeights = [2.0, 4.2, 1.8, 5.0, 3.0, 5.5, 2.2, 4.5, 3.2, 1.8, 4.0, 2.8, 4.8, 2.0, 3.8, 2.8];
 			const barCount = barHeights.length;
-			const startBarX = bubbleX + bubblePadX + 23;
-			const barZone = cardW - 27;
+			const startBarX = bubbleX + bubblePadX + 11.5;
+			const barZone = bubbleW - bubblePadX * 2 - 24;
 			const barW = Math.max(0.6, barZone / barCount - 0.4);
 
 			for (let i = 0; i < barCount; i++) {
 				const bh = barHeights[i];
 				const bx = startBarX + i * (barW + 0.4);
-				const by = drawY + 5.8 - bh / 2;
-				// Primeros 40% en verde activo, resto en gris
-				if (i < Math.floor(barCount * 0.4)) {
+				const by = drawY + 5.0 - bh / 2;
+				if (i < Math.floor(barCount * 0.45)) {
 					setFill(pdf, '#00a884');
 				} else {
-					setFill(pdf, theme.name === 'light' ? '#8696a0' : '#3b4a54');
+					setFill(pdf, theme.name === 'light' ? '#8696a0' : '#4a5d66');
 				}
 				pdf.rect(bx, by, barW, bh, 'F');
 			}
 
-			// Duración del audio (ej. 0:06 o att.durationSeconds)
+			// Duración del audio (0:06)
 			const durationStr = att.durationSeconds
 				? `${Math.floor(att.durationSeconds / 60)}:${Math.floor(att.durationSeconds % 60).toString().padStart(2, '0')}`
 				: '0:06';
 
 			pdf.setFont('helvetica', 'normal');
-			pdf.setFontSize(7);
+			pdf.setFontSize(7.5);
 			setTexHex(pdf, theme.metaColor);
-			pdf.text(durationStr, bubbleX + bubblePadX + cardW - 3, drawY + 11.8, { align: 'right' });
+			pdf.text(durationStr, bubbleX + bubbleW - bubblePadX - 1, drawY + 4.5, { align: 'right' });
 
 			drawY += attachmentH;
 		} else if (att.kind === 'document') {
 			setFill(pdf, theme.name === 'light' ? '#f0f2f5' : '#182229');
-			roundedRect(pdf, bubbleX + bubblePadX, drawY, bubbleW - bubblePadX * 2, 10.5, 2, 'F');
+			roundedRect(pdf, bubbleX + bubblePadX, drawY, bubbleW - bubblePadX * 2, 9.5, 1.8, 'F');
 			// Icono documento
 			setFill(pdf, '#4f46e5');
-			roundedRect(pdf, bubbleX + bubblePadX + 2.5, drawY + 2.2, 4.5, 5.6, 0.6, 'F');
+			roundedRect(pdf, bubbleX + bubblePadX + 2.0, drawY + 2.0, 4.0, 5.2, 0.5, 'F');
 			setFill(pdf, '#ffffff');
-			pdf.rect(bubbleX + bubblePadX + 3.5, drawY + 3.6, 2.5, 0.5, 'F');
-			pdf.rect(bubbleX + bubblePadX + 3.5, drawY + 4.8, 2.5, 0.5, 'F');
+			pdf.rect(bubbleX + bubblePadX + 2.8, drawY + 3.2, 2.2, 0.5, 'F');
+			pdf.rect(bubbleX + bubblePadX + 2.8, drawY + 4.3, 2.2, 0.5, 'F');
 			pdf.setFontSize(8);
 			setTexHex(pdf, textColor);
 			drawSingleLineText(
 				pdf,
 				att.fileName || 'Documento',
-				bubbleX + bubblePadX + 9,
-				drawY + 6.8,
-				bubbleW - bubblePadX * 2 - 12
+				bubbleX + bubblePadX + 8,
+				drawY + 6.2,
+				bubbleW - bubblePadX * 2 - 10
 			);
 			drawY += attachmentH;
 		} else {
@@ -562,12 +526,13 @@ async function drawMessage(
 	// ── Texto del mensaje ──
 	if (textLines.length > 0) {
 		pdf.setFont('helvetica', isDeleted ? 'italic' : 'normal');
-		pdf.setFontSize(9.5);
+		pdf.setFontSize(10.5);
 		const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
 
-		for (const line of textLines) {
-			const startX = bubbleX + bubblePadX + 1;
-			const startY = drawY + 3.5;
+		for (let i = 0; i < textLines.length; i++) {
+			const line = textLines[i];
+			const startX = bubbleX + bubblePadX + 0.5;
+			const startY = drawY + 3.6;
 
 			if (isDeleted) {
 				setTexHex(pdf, theme.metaColor);
@@ -607,15 +572,19 @@ async function drawMessage(
 	pdf.setFont('helvetica', 'normal');
 	pdf.setFontSize(7.5);
 	setTexHex(pdf, theme.metaColor);
-	const timeX = bubbleX + bubbleW - bubblePadX - pdf.getTextWidth(time) - (isOwner ? 5.5 : 1);
-	pdf.text(time, timeX, drawY + 2.5);
+
+	// Si el mensaje tiene solo 1 línea, alinear la hora al final de la línea
+	const timeY = (textLines.length === 1 && !msg.attachment && !msg.callInfo) ? y + bubblePadY + 3.6 : drawY + 1.2;
+	const timeX = bubbleX + bubbleW - bubblePadX - pdf.getTextWidth(time) - (isOwner ? 5.2 : 0.5);
+
+	pdf.text(time, timeX, timeY);
 
 	if (isOwner) {
 		// Doble check vectorial azul oficial de WhatsApp
-		drawVectorDoubleCheck(pdf, bubbleX + bubbleW - bubblePadX - 4.2, drawY + 0.6, '#53bdeb');
+		drawVectorDoubleCheck(pdf, bubbleX + bubbleW - bubblePadX - 4.0, timeY - 1.8, '#53bdeb');
 	}
 
-	return { heightUsed: bubbleH + 4.0 };
+	return { heightUsed: bubbleH + 2.5 };
 }
 
 function drawSystemEvent(pdf: jsPDF, text: string, y: number, theme: PdfThemeColors): number {
@@ -625,10 +594,10 @@ function drawSystemEvent(pdf: jsPDF, text: string, y: number, theme: PdfThemeCol
 	const pillW = textW + 12;
 	const pillX = (PDF_W_MM - pillW) / 2;
 	setFill(pdf, theme.pillBg);
-	roundedRect(pdf, pillX, y, pillW, 6.5, 1.8, 'F');
+	roundedRect(pdf, pillX, y, pillW, 6.0, 1.8, 'F');
 	setTexHex(pdf, theme.pillText);
-	pdf.text(cleanPdfText(text), pillX + 6, y + 4.4);
-	return 8.5;
+	pdf.text(cleanPdfText(text), pillX + 6, y + 4.2);
+	return 7.5;
 }
 
 function drawDateSeparator(pdf: jsPDF, label: string, y: number, theme: PdfThemeColors): number {
@@ -638,10 +607,10 @@ function drawDateSeparator(pdf: jsPDF, label: string, y: number, theme: PdfTheme
 	const pillW = textW + 14;
 	const pillX = (PDF_W_MM - pillW) / 2;
 	setFill(pdf, theme.pillBg);
-	roundedRect(pdf, pillX, y, pillW, 7, 2, 'F');
+	roundedRect(pdf, pillX, y, pillW, 6.5, 2, 'F');
 	setTexHex(pdf, theme.pillText);
-	pdf.text(label, pillX + 7, y + 4.8);
-	return 9.5;
+	pdf.text(label, pillX + 7, y + 4.5);
+	return 8.5;
 }
 
 function drawWatermark(pdf: jsPDF, text: string) {
@@ -832,19 +801,19 @@ export async function exportChatToPdf(
 			const dt = new Date(Number(y), Number(mo) - 1, Number(d));
 			const label = dt.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
 
-			if (currentY + 14 > PDF_H_MM - MARGIN) {
+			if (currentY + 12 > PDF_H_MM - MARGIN) {
 				pdf.addPage();
 				setFill(pdf, theme.pageBg);
 				pdf.rect(0, 0, PDF_W_MM, PDF_H_MM, 'F');
 				currentY = MARGIN + 4;
 			}
-			currentY += 2;
+			currentY += 1.5;
 			const dateH = drawDateSeparator(pdf, label, currentY, theme);
 			currentY += dateH;
 		}
 
 		if (msg.isSystemEvent) {
-			if (currentY + 10 > PDF_H_MM - MARGIN) {
+			if (currentY + 9 > PDF_H_MM - MARGIN) {
 				pdf.addPage();
 				setFill(pdf, theme.pageBg);
 				pdf.rect(0, 0, PDF_W_MM, PDF_H_MM, 'F');
@@ -854,25 +823,25 @@ export async function exportChatToPdf(
 			currentY += h;
 		} else {
 			try {
-				const innerMaxW = CONTENT_W * 0.72 - 8;
+				const innerMaxW = CONTENT_W * 0.72 - 6;
 				const textLines = (msg.text && !msg.callInfo) ? wrapText(pdf, msg.text, innerMaxW) : [];
-				const textH = textLines.length * 4.6;
+				const textH = textLines.length * 4.8;
 				const senderH = (isGroup && !msg.senderRole || msg.senderRole !== 'owner') ? 4.8 : 0;
-				const callH = msg.callInfo ? 9.5 : 0;
+				const callH = msg.callInfo ? 9.0 : 0;
 
 				let attachmentH = 0;
 				if (msg.attachment) {
 					const att = msg.attachment;
 					if (att.kind === 'image' || att.isSticker) attachmentH = 48;
-					else if (att.kind === 'video') attachmentH = 14;
-					else if (att.kind === 'audio') attachmentH = 14;
-					else if (att.kind === 'document') attachmentH = 12.5;
-					else attachmentH = 7.5;
+					else if (att.kind === 'video') attachmentH = 13;
+					else if (att.kind === 'audio') attachmentH = 11.5;
+					else if (att.kind === 'document') attachmentH = 11.5;
+					else attachmentH = 7.0;
 				}
 
-				const estimatedH = senderH + callH + attachmentH + textH + 4.2 + 6.4;
+				const estimatedH = senderH + callH + attachmentH + textH + 3.8 + 5.0;
 
-				// ── Protección de salto de página (page-break-inside: avoid) ──
+				// ── Protección contra cortes de página ──
 				if (currentY + estimatedH > PDF_H_MM - MARGIN) {
 					pdf.addPage();
 					setFill(pdf, theme.pageBg);
@@ -884,7 +853,7 @@ export async function exportChatToPdf(
 				currentY += result.heightUsed;
 			} catch (err) {
 				console.warn('Error al dibujar mensaje en PDF', err);
-				currentY += 8;
+				currentY += 7;
 			}
 		}
 
