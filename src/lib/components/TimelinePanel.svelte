@@ -119,6 +119,7 @@
 		display: flex;
 		flex-direction: column;
 		min-height: 0;
+		height: 100%;
 		padding: var(--space-4);
 		gap: var(--space-3);
 		background: white;

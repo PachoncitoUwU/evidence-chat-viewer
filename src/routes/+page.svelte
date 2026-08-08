@@ -511,22 +511,26 @@
 		color: var(--brass);
 	}
 
+	.sidebar-wrapper {
+		grid-area: left;
+		height: 100%;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.timeline-wrapper {
+		grid-area: right;
+		height: 100%;
+		display: flex;
+		flex-direction: column;
+	}
+
 	/* — Mobile Header & Responsiveness — */
 	.mobile-header {
 		display: none;
 	}
 	.mobile-backdrop {
 		display: none;
-	}
-
-	@media (max-width: 1080px) {
-		.app-shell {
-			grid-template-columns: 220px 1fr;
-			grid-template-areas: 'left main';
-		}
-		.timeline-wrapper {
-			display: none;
-		}
 	}
 
 	@media (max-width: 768px) {
