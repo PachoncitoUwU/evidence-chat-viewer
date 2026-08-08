@@ -13,6 +13,7 @@
 	import { chatConfig } from '$lib/stores/chatConfig';
 	import { authStore } from '$lib/stores/authStore';
 	import { saveUserCasesToCloud, loadUserCasesFromCloud } from '$lib/cloudStorage';
+	import { hiddenMediaStore } from '$lib/stores/hiddenMediaStore';
 	import type { EvidenceCase, ChatMeta, ChatMessage, DaySummary, EvidenceFilter } from '$types/chat.types';
 
 	let cases: EvidenceCase[] = [];
@@ -56,9 +57,12 @@
 	$: darkMode = cfg.darkMode === 'dark';
 	$: user = $authStore;
 
-	// Sincronizar y cargar chats cuando cambia la sesión del usuario
+	// Sincronizar y cargar chats y elementos ocultos cuando cambia la sesión del usuario
 	$: if (user && user.isLoggedIn) {
+		hiddenMediaStore.setUser(user.username);
 		loadUserSessionData(user.username, user.pin);
+	} else {
+		hiddenMediaStore.setUser('');
 	}
 
 	async function loadUserSessionData(username: string, pin: string) {

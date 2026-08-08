@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v1.4.4';
-export const BUILD_COMMIT = 'f719b02';
-export const BUILD_DATE = '08/08/2026 17:46';
-export const BUILD_NOTES = 'Ojito (Eye) en todos los mensajes (texto, fotos, videos, audios, stickers) y proteccion de adjuntos';
+export const APP_VERSION = 'v1.4.5';
+export const BUILD_COMMIT = 'b73a9e1';
+export const BUILD_DATE = '08/08/2026 17:49';
+export const BUILD_NOTES = 'Persistencia de elementos ocultos (ojitos) en la cuenta del usuario e integracion con perfiles';
