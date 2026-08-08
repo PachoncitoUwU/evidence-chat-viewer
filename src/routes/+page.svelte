@@ -244,20 +244,64 @@
 			exportProgress = 0;
 		}
 	}
+	import { Menu, X, Calendar as CalendarIcon, User as UserIcon, MessageCircle } from 'lucide-svelte';
+
+	let isMobileSidebarOpen = false;
+	let isMobileTimelineOpen = false;
+
+	function handleSelectCaseMobile(id: string) {
+		handleSelectCase(id);
+		isMobileSidebarOpen = false;
+	}
 </script>
 
 <svelte:head>
 	<title>Chat Viewer — Visor de WhatsApp</title>
 </svelte:head>
 
+<!-- Mobile Top Header Bar -->
+<header class="mobile-header">
+	<button class="mobile-icon-btn" on:click={() => (isMobileSidebarOpen = !isMobileSidebarOpen)} aria-label="Abrir menú de chats">
+		<Menu size={22} color="white" />
+	</button>
+
+	<div class="mobile-brand">
+		<MessageCircle size={18} color="#25d366" />
+		<span class="mobile-title">{activeMeta ? activeMeta.title : 'Chat Viewer'}</span>
+	</div>
+
+	<div class="mobile-actions">
+		{#if activeMeta}
+			<button class="mobile-icon-btn" on:click={() => (isMobileTimelineOpen = !isMobileTimelineOpen)} aria-label="Filtro de fecha">
+				<CalendarIcon size={20} color="white" />
+			</button>
+		{/if}
+		<button class="mobile-icon-btn" on:click={() => (showAuthModal = true)} aria-label="Perfil">
+			<UserIcon size={20} color="white" />
+		</button>
+	</div>
+</header>
+
+<!-- Mobile Sidebar Drawer Backdrop -->
+{#if isMobileSidebarOpen}
+	<div class="mobile-backdrop" on:click={() => (isMobileSidebarOpen = false)} role="button" tabindex="0"></div>
+{/if}
+
+<!-- Mobile Timeline Drawer Backdrop -->
+{#if isMobileTimelineOpen}
+	<div class="mobile-backdrop" on:click={() => (isMobileTimelineOpen = false)} role="button" tabindex="0"></div>
+{/if}
+
 <div class="app-shell" class:dark={darkMode}>
-	<ProjectSidebar
-		{cases}
-		{activeCaseId}
-		onSelectCase={handleSelectCase}
-		onNewCase={handleNewCase}
-		onOpenAuth={() => (showAuthModal = true)}
-	/>
+	<div class="sidebar-wrapper" class:mobile-open={isMobileSidebarOpen}>
+		<ProjectSidebar
+			{cases}
+			{activeCaseId}
+			onSelectCase={handleSelectCaseMobile}
+			onNewCase={() => { handleNewCase(); isMobileSidebarOpen = false; }}
+			onOpenAuth={() => { showAuthModal = true; isMobileSidebarOpen = false; }}
+		/>
+	</div>
 
 	{#if isParsing}
 		<div class="center-state">
@@ -275,12 +319,14 @@
 			onSearchChange={handleSearchChange}
 			participants={activeMeta?.participants ?? []}
 		/>
-		<TimelinePanel
-			days={activeDays}
-			{filter}
-			onFilterChange={handleFilterChange}
-			onExportPdf={handleExportPdf}
-		/>
+		<div class="timeline-wrapper" class:mobile-open={isMobileTimelineOpen}>
+			<TimelinePanel
+				days={activeDays}
+				{filter}
+				onFilterChange={handleFilterChange}
+				onExportPdf={() => { handleExportPdf(); isMobileTimelineOpen = false; }}
+			/>
+		</div>
 
 		<!-- Floating button for media gallery -->
 		<button class="fab-media" on:click={() => (showMediaGallery = true)} title="Ver galería multimedia">
@@ -465,10 +511,117 @@
 		color: var(--brass);
 	}
 
+	/* — Mobile Header & Responsiveness — */
+	.mobile-header {
+		display: none;
+	}
+	.mobile-backdrop {
+		display: none;
+	}
+
 	@media (max-width: 1080px) {
 		.app-shell {
 			grid-template-columns: 220px 1fr;
 			grid-template-areas: 'left main';
+		}
+		.timeline-wrapper {
+			display: none;
+		}
+	}
+
+	@media (max-width: 768px) {
+		.mobile-header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			height: 56px;
+			padding: 0 16px;
+			background: #111b21;
+			border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+			position: sticky;
+			top: 0;
+			z-index: 1000;
+		}
+		.mobile-brand {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+		}
+		.mobile-title {
+			font-size: 1rem;
+			font-weight: 700;
+			color: white;
+			max-width: 180px;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+		.mobile-actions {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+		}
+		.mobile-icon-btn {
+			background: none;
+			border: none;
+			padding: 6px;
+			border-radius: 50%;
+			cursor: pointer;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+		.mobile-backdrop {
+			display: block;
+			position: fixed;
+			inset: 0;
+			background: rgba(0, 0, 0, 0.65);
+			backdrop-filter: blur(4px);
+			z-index: 1999;
+		}
+
+		.app-shell {
+			display: flex;
+			flex-direction: column;
+			height: calc(100vh - 56px);
+			padding: 0;
+			gap: 0;
+		}
+
+		.sidebar-wrapper {
+			position: fixed;
+			top: 0;
+			bottom: 0;
+			left: -300px;
+			width: 280px;
+			z-index: 2000;
+			transition: left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+		}
+		.sidebar-wrapper.mobile-open {
+			left: 0;
+			box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
+		}
+
+		.timeline-wrapper {
+			display: block;
+			position: fixed;
+			bottom: -100%;
+			left: 0;
+			right: 0;
+			max-height: 75vh;
+			z-index: 2000;
+			transition: bottom 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+			border-radius: 20px 20px 0 0;
+			overflow: hidden;
+			box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
+		}
+		.timeline-wrapper.mobile-open {
+			bottom: 0;
+		}
+
+		.onboarding {
+			padding: 20px;
+			text-align: center;
 		}
 	}
 
