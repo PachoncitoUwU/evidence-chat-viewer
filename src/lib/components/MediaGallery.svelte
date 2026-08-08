@@ -28,23 +28,30 @@
 			att: m.attachment!
 		}));
 
+	$: hiddenItems = messages
+		.filter(m => $hiddenMediaStore.has(m.id))
+		.map(m => ({
+			msg: m,
+			att: m.attachment && m.attachment.status === 'linked' ? m.attachment : null
+		}));
+
 	$: visibleMedia = allMedia.filter(item => !$hiddenMediaStore.has(item.msg.id));
-	$: hiddenMedia = allMedia.filter(item => $hiddenMediaStore.has(item.msg.id));
 
 	$: filteredByTab = activeTab === 'hidden'
-		? hiddenMedia
+		? hiddenItems
 		: activeTab === 'all'
 			? visibleMedia
 			: activeTab === 'sticker'
-				? visibleMedia.filter(item => item.att.isSticker)
+				? visibleMedia.filter(item => item.att && item.att.isSticker)
 				: activeTab === 'image'
-					? visibleMedia.filter(item => item.att.kind === 'image' && !item.att.isSticker)
-					: visibleMedia.filter(item => item.att.kind === activeTab);
+					? visibleMedia.filter(item => item.att && item.att.kind === 'image' && !item.att.isSticker)
+					: visibleMedia.filter(item => item.att && item.att.kind === activeTab);
 
 	$: filtered = searchQuery.trim()
 		? filteredByTab.filter(item =>
-				item.att.fileName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+				(item.att?.fileName ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
 				item.msg.senderName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+				item.msg.text.toLowerCase().includes(searchQuery.toLowerCase()) ||
 				item.msg.date.includes(searchQuery)
 			)
 		: filteredByTab;
@@ -60,14 +67,15 @@
 	];
 
 	function countOf(kind: MediaTabKind) {
-		if (kind === 'hidden') return hiddenMedia.length;
+		if (kind === 'hidden') return hiddenItems.length;
 		if (kind === 'all') return visibleMedia.length;
-		if (kind === 'sticker') return visibleMedia.filter(i => i.att.isSticker).length;
-		if (kind === 'image') return visibleMedia.filter(i => i.att.kind === 'image' && !i.att.isSticker).length;
-		return visibleMedia.filter(i => i.att.kind === kind).length;
+		if (kind === 'sticker') return visibleMedia.filter(i => i.att?.isSticker).length;
+		if (kind === 'image') return visibleMedia.filter(i => i.att?.kind === 'image' && !i.att?.isSticker).length;
+		return visibleMedia.filter(i => i.att?.kind === kind).length;
 	}
 
-	function downloadFile(url: string, name: string) {
+	function downloadFile(url?: string | null, name?: string | null) {
+		if (!url || !name) return;
 		const a = document.createElement('a');
 		a.href = url;
 		a.download = name;
@@ -76,19 +84,23 @@
 
 	function downloadAll() {
 		filtered.forEach((item, index) => {
-			if (item.att.previewUrl) {
+			if (item.att && item.att.previewUrl) {
+				const url = item.att.previewUrl;
+				const name = item.att.fileName;
 				setTimeout(() => {
-					downloadFile(item.att.previewUrl!, item.att.fileName);
+					downloadFile(url, name);
 				}, index * 100);
 			}
 		});
 	}
 
-	function openLightbox(src: string, name: string) {
-		lightboxSrc = src; lightboxName = name; lightboxOpen = true;
+	function openLightbox(src?: string | null, name?: string | null) {
+		if (!src) return;
+		lightboxSrc = src; lightboxName = name || ''; lightboxOpen = true;
 	}
-	function openVideo(src: string, name: string) {
-		videoSrc = src; videoName = name; videoOpen = true;
+	function openVideo(src?: string | null, name?: string | null) {
+		if (!src) return;
+		videoSrc = src; videoName = name || ''; videoOpen = true;
 	}
 
 	function formatDate(iso: string) {
@@ -168,10 +180,10 @@
 			{:else if viewMode === 'grid'}
 				{#each filtered as item (item.msg.id)}
 					<div class="grid-item">
-						{#if item.att.kind === 'image' || item.att.isSticker}
+						{#if item.att?.kind === 'image' || item.att?.isSticker}
 							<!-- svelte-ignore a11y-click-events-have-key-events -->
 							<!-- svelte-ignore a11y-no-static-element-interactions -->
-							<div class="thumb-wrap" class:is-sticker-thumb={item.att.isSticker} on:click={() => openLightbox(item.att.previewUrl!, item.att.fileName)}>
+							<div class="thumb-wrap" class:is-sticker-thumb={item.att.isSticker} on:click={() => openLightbox(item.att?.previewUrl!, item.att?.fileName)}>
 								<img src={item.att.previewUrl} alt={item.att.fileName} loading="lazy" class="thumb" class:sticker-img-thumb={item.att.isSticker} />
 								<div class="thumb-overlay">
 									<span class="thumb-date">{formatDate(item.msg.date)}</span>
@@ -185,16 +197,18 @@
 												<Eye size={14} color="white" />
 											</button>
 										{/if}
-										<button class="thumb-dl" on:click|stopPropagation={() => downloadFile(item.att.previewUrl!, item.att.fileName)} title="Descargar">
-											<Download size={14} color="white" />
-										</button>
+										{#if item.att.previewUrl}
+											<button class="thumb-dl" on:click|stopPropagation={() => downloadFile(item.att?.previewUrl!, item.att?.fileName)} title="Descargar">
+												<Download size={14} color="white" />
+											</button>
+										{/if}
 									</div>
 								</div>
 							</div>
-						{:else if item.att.kind === 'video'}
+						{:else if item.att?.kind === 'video'}
 							<!-- svelte-ignore a11y-click-events-have-key-events -->
 							<!-- svelte-ignore a11y-no-static-element-interactions -->
-							<div class="thumb-wrap video-thumb" on:click={() => openVideo(item.att.previewUrl!, item.att.fileName)}>
+							<div class="thumb-wrap video-thumb" on:click={() => openVideo(item.att?.previewUrl!, item.att?.fileName)}>
 								<div class="video-placeholder">
 									<Film size={28} color="rgba(255,255,255,0.8)" />
 								</div>
@@ -210,23 +224,20 @@
 												<Eye size={14} color="white" />
 											</button>
 										{/if}
-										<button class="thumb-dl" on:click|stopPropagation={() => downloadFile(item.att.previewUrl!, item.att.fileName)} title="Descargar">
-											<Download size={14} color="white" />
-										</button>
+										{#if item.att?.previewUrl}
+											<button class="thumb-dl" on:click|stopPropagation={() => downloadFile(item.att?.previewUrl!, item.att?.fileName)} title="Descargar">
+												<Download size={14} color="white" />
+											</button>
+										{/if}
 									</div>
 								</div>
 							</div>
-						{:else if item.att.kind === 'audio'}
+						{:else if item.att?.kind === 'audio'}
 							<div class="audio-grid-item">
-								<div class="audio-icon-wrap">
-									<Mic size={20} color="#00a884" />
-								</div>
+								<Mic size={22} color="#00a884" />
 								<div class="audio-info">
 									<span class="file-name">{item.att.fileName}</span>
-									<span class="file-meta">{formatDate(item.msg.date)} · {item.msg.senderName}</span>
-									{#if item.att.previewUrl}
-										<audio controls src={item.att.previewUrl} preload="none" class="gallery-audio-player"></audio>
-									{/if}
+									<span class="file-meta">{formatDate(item.msg.date)} · Audio</span>
 								</div>
 								<div class="item-action-btns">
 									{#if $hiddenMediaStore.has(item.msg.id)}
@@ -238,12 +249,14 @@
 											<Eye size={14} />
 										</button>
 									{/if}
-									<button class="dl-circle" on:click={() => downloadFile(item.att.previewUrl!, item.att.fileName)} title="Descargar audio">
-										<Download size={14} />
-									</button>
+									{#if item.att.previewUrl}
+										<button class="dl-circle" on:click={() => downloadFile(item.att?.previewUrl!, item.att?.fileName)} title="Descargar audio">
+											<Download size={14} />
+										</button>
+									{/if}
 								</div>
 							</div>
-						{:else}
+						{:else if item.att?.kind === 'document'}
 							<div class="doc-grid-item">
 								<FileText size={22} color="#4f46e5" />
 								<div class="audio-info">
@@ -260,8 +273,24 @@
 											<Eye size={14} />
 										</button>
 									{/if}
-									<button class="dl-circle" on:click={() => downloadFile(item.att.previewUrl!, item.att.fileName)} title="Descargar documento">
-										<Download size={14} />
+									{#if item.att.previewUrl}
+										<button class="dl-circle" on:click={() => downloadFile(item.att?.previewUrl!, item.att?.fileName)} title="Descargar documento">
+											<Download size={14} />
+										</button>
+									{/if}
+								</div>
+							</div>
+						{:else}
+							<!-- Mensajes de texto ocultos sin adjunto -->
+							<div class="doc-grid-item" style="border-left: 3px solid #dc2626;">
+								<EyeOff size={20} color="#dc2626" />
+								<div class="audio-info">
+									<span class="file-name">@{item.msg.senderName}: "{item.msg.text.slice(0, 45)}{item.msg.text.length > 45 ? '...' : ''}"</span>
+									<span class="file-meta">{formatDate(item.msg.date)} · Mensaje de Texto Oculto</span>
+								</div>
+								<div class="item-action-btns">
+									<button class="dl-circle" on:click={() => hiddenMediaStore.unhide(item.msg.id)} title="Mostrar en el chat y PDF (Restaurar)">
+										<EyeOff size={14} color="#25d366" />
 									</button>
 								</div>
 							</div>
@@ -272,24 +301,26 @@
 				<!-- List view -->
 				{#each filtered as item (item.msg.id)}
 					<div class="list-item">
-						{#if item.att.kind === 'image' || item.att.isSticker}
+						{#if item.att?.kind === 'image' || item.att?.isSticker}
 							<!-- svelte-ignore a11y-click-events-have-key-events -->
 							<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-							<img src={item.att.previewUrl} alt={item.att.fileName} class="list-thumb" class:is-sticker-list={item.att.isSticker} on:click={() => openLightbox(item.att.previewUrl!, item.att.fileName)} />
-						{:else if item.att.kind === 'video'}
-							<button type="button" class="list-thumb-btn video-icon" on:click={() => openVideo(item.att.previewUrl!, item.att.fileName)}>
+							<img src={item.att.previewUrl} alt={item.att.fileName} class="list-thumb" class:is-sticker-list={item.att.isSticker} on:click={() => openLightbox(item.att?.previewUrl, item.att?.fileName)} />
+						{:else if item.att?.kind === 'video'}
+							<button type="button" class="list-thumb-btn video-icon" on:click={() => openVideo(item.att?.previewUrl, item.att?.fileName)}>
 								<Film size={20} color="rgba(255,255,255,0.8)" />
 							</button>
-						{:else if item.att.kind === 'audio'}
+						{:else if item.att?.kind === 'audio'}
 							<div class="list-thumb audio-icon"><Mic size={20} color="#00a884" /></div>
-						{:else}
+						{:else if item.att?.kind === 'document'}
 							<div class="list-thumb doc-icon"><FileText size={20} color="#4f46e5" /></div>
+						{:else}
+							<div class="list-thumb doc-icon" style="background:rgba(220,38,38,0.1);"><EyeOff size={20} color="#dc2626" /></div>
 						{/if}
 						<div class="list-info">
-							<span class="file-name">{item.att.fileName}</span>
+							<span class="file-name">{item.att?.fileName || item.msg.text.slice(0, 45)}</span>
 							<span class="file-meta">
 								{item.msg.senderName} · {formatDate(item.msg.date)} {item.msg.time.slice(0,5)}
-								{#if item.att.sizeBytes} · {formatSize(item.att.sizeBytes)}{/if}
+								{#if item.att?.sizeBytes} · {formatSize(item.att.sizeBytes)}{/if}
 							</span>
 						</div>
 						<div class="item-action-btns">
@@ -302,9 +333,11 @@
 									<Eye size={15} />
 								</button>
 							{/if}
-							<button class="dl-circle" on:click={() => downloadFile(item.att.previewUrl!, item.att.fileName)} title="Descargar archivo">
-								<Download size={15} />
-							</button>
+							{#if item.att?.previewUrl}
+								<button class="dl-circle" on:click={() => downloadFile(item.att?.previewUrl, item.att?.fileName)} title="Descargar archivo">
+									<Download size={15} />
+								</button>
+							{/if}
 						</div>
 					</div>
 				{/each}

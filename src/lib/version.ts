@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v1.4.6';
-export const BUILD_COMMIT = 'a902c4b';
-export const BUILD_DATE = '08/08/2026 17:58';
-export const BUILD_NOTES = 'Soporte decodificacion UTF-16LE iPhone y limpieza total de nulos y caracteres raros en PDF';
+export const APP_VERSION = 'v1.4.7';
+export const BUILD_COMMIT = 'c28f109';
+export const BUILD_DATE = '08/08/2026 18:02';
+export const BUILD_NOTES = 'Soporte total de mensajes de texto y multimedia en la pestaña Ocultos de la galeria con boton restaurar';
