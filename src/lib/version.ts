@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v1.4.7';
-export const BUILD_COMMIT = 'c28f109';
-export const BUILD_DATE = '08/08/2026 18:02';
-export const BUILD_NOTES = 'Soporte total de mensajes de texto y multimedia en la pestaña Ocultos de la galeria con boton restaurar';
+export const APP_VERSION = 'v1.5.0';
+export const BUILD_COMMIT = 'd820f4e';
+export const BUILD_DATE = '08/08/2026 20:11';
+export const BUILD_NOTES = 'Conexion oficial Supabase (whatsappviwer) y respaldos multidispositivo .chatpack';

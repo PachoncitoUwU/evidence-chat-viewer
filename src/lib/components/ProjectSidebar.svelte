@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { FolderOpen, Plus, MessageCircle, Search, User, LogIn, LogOut, ShieldCheck } from 'lucide-svelte';
+	import { FolderOpen, Plus, MessageCircle, Search, User, LogIn, LogOut, ShieldCheck, Download, Upload } from 'lucide-svelte';
 	import type { EvidenceCase } from '$types/chat.types';
 	import { authStore } from '$lib/stores/authStore';
 	import { APP_VERSION, BUILD_COMMIT, BUILD_DATE } from '$lib/version';
@@ -9,13 +9,27 @@
 	export let onSelectCase: (id: string) => void = () => {};
 	export let onNewCase: () => void = () => {};
 	export let onOpenAuth: () => void = () => {};
+	export let onExportProfileBackup: () => void = () => {};
+	export let onImportProfileBackup: (file: File) => void = () => {};
 
 	let filterQuery = '';
+	let backupFileInput: HTMLInputElement;
 
 	$: user = $authStore;
 	$: visibleCases = cases.filter((c) =>
 		c.name.toLowerCase().includes(filterQuery.trim().toLowerCase())
 	);
+
+	function triggerImport() {
+		if (backupFileInput) backupFileInput.click();
+	}
+	function handleBackupFile(e: Event) {
+		const target = e.target as HTMLInputElement;
+		if (target.files && target.files[0]) {
+			onImportProfileBackup(target.files[0]);
+			target.value = '';
+		}
+	}
 </script>
 
 <aside class="sidebar glass-panel">
@@ -56,6 +70,20 @@
 		<Plus size={16} strokeWidth={2.5} />
 		<span>Cargar otro chat</span>
 	</button>
+
+	{#if cases.length > 0}
+		<div class="backup-box">
+			<button class="backup-btn export-btn" on:click={onExportProfileBackup} title="Guardar respaldo .chatpack con los chats para usar en celular u otro PC">
+				<Download size={13} />
+				<span>Respaldar (.chatpack)</span>
+			</button>
+			<button class="backup-btn import-btn" on:click={triggerImport} title="Cargar respaldo .chatpack en este computador o celular">
+				<Upload size={13} />
+				<span>Restaurar Perfil</span>
+			</button>
+			<input type="file" accept=".chatpack,.json" bind:this={backupFileInput} on:change={handleBackupFile} style="display:none;" />
+		</div>
+	{/if}
 
 	<nav class="case-list">
 		{#each visibleCases as c (c.id)}
@@ -173,6 +201,40 @@
 	.new-btn:hover {
 		opacity: 0.9;
 		transform: translateY(-1px);
+	}
+
+	.backup-box {
+		display: flex;
+		gap: 6px;
+		margin-top: 4px;
+	}
+	.backup-btn {
+		flex: 1;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 5px;
+		font-size: 11px;
+		font-weight: 600;
+		padding: 6px 8px;
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+		border: 1px solid rgba(0,0,0,0.1);
+		transition: all var(--dur-fast);
+	}
+	.backup-btn.export-btn {
+		background: rgba(79, 70, 229, 0.1);
+		color: #4f46e5;
+		border-color: rgba(79, 70, 229, 0.25);
+	}
+	.backup-btn.import-btn {
+		background: rgba(37, 211, 102, 0.1);
+		color: #00a884;
+		border-color: rgba(37, 211, 102, 0.25);
+	}
+	.backup-btn:hover {
+		transform: translateY(-1px);
+		filter: brightness(1.05);
 	}
 
 	.case-list {

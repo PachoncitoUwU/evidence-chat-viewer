@@ -218,11 +218,52 @@
 		}
 	}
 
+	import { exportProfileBackup, parseProfileBackupFile } from '$lib/profileBackup';
+	import { get } from 'svelte/store';
+
 	function handleNewCase() {
 		activeMeta = null;
 		activeMessages = [];
 		activeDays = [];
 		parseError = null;
+	}
+
+	function handleExportBackup() {
+		const hiddenSet = get(hiddenMediaStore);
+		exportProfileBackup(user.username, cases, caseDataMap, hiddenSet);
+		toastMessage = '¡Respaldo pericial generado!';
+		toastDetails = `Guarda tu archivo .chatpack para restaurar tus ${cases.length} chats en tu celular o cualquier otro computador.`;
+		toastType = 'success';
+		showToast = true;
+	}
+
+	async function handleImportBackup(file: File) {
+		try {
+			const bundle = await parseProfileBackupFile(file);
+			for (const item of bundle.caseDataList) {
+				caseDataMap.set(item.caseId, {
+					meta: item.meta,
+					messages: item.messages,
+					days: item.days
+				});
+			}
+			cases = bundle.cases;
+			if (bundle.hiddenItems && Array.isArray(bundle.hiddenItems)) {
+				bundle.hiddenItems.forEach((id) => hiddenMediaStore.hide(id));
+			}
+			if (cases.length > 0) {
+				handleSelectCase(cases[0].id);
+			}
+			if (user && user.isLoggedIn) {
+				saveUserCasesToCloud(user.username, user.pin, cases, caseDataMap);
+			}
+			toastMessage = '¡Perfil y chats restaurados!';
+			toastDetails = `Se cargaron ${bundle.cases.length} chats completos en este dispositivo.`;
+			toastType = 'success';
+			showToast = true;
+		} catch (e: any) {
+			alert(e.message || 'Error al importar el archivo de respaldo .chatpack.');
+		}
 	}
 
 	function handleExportPdf() {
@@ -304,6 +345,8 @@
 			onSelectCase={handleSelectCaseMobile}
 			onNewCase={() => { handleNewCase(); isMobileSidebarOpen = false; }}
 			onOpenAuth={() => { showAuthModal = true; isMobileSidebarOpen = false; }}
+			onExportProfileBackup={handleExportBackup}
+			onImportProfileBackup={handleImportBackup}
 		/>
 	</div>
 
