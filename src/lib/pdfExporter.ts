@@ -80,52 +80,20 @@ function getCallIconCanvasUrl(isMissed: boolean, isVideo: boolean): string {
 	ctx.lineJoin = 'round';
 
 	if (isVideo) {
-		// Ícono de videollamada
-		ctx.beginPath();
-		if (typeof ctx.roundRect === 'function') {
-			ctx.roundRect(22, 34, 30, 28, 6);
-		} else {
-			ctx.rect(22, 34, 30, 28);
-		}
-		ctx.fill();
-
-		ctx.beginPath();
-		ctx.moveTo(56, 42);
-		ctx.lineTo(74, 31);
-		ctx.lineTo(74, 65);
-		ctx.lineTo(56, 54);
-		ctx.closePath();
-		ctx.fill();
-	} else {
-		// Ícono de auricular de voz (inclinado elegante como WhatsApp)
+		// Ícono de videollamada usando Path2D (Material Design)
 		ctx.save();
-		ctx.translate(size / 2, size / 2);
-		ctx.rotate((-35 * Math.PI) / 180);
-
-		// Mango curvo del auricular
-		ctx.beginPath();
-		ctx.lineWidth = 10;
-		ctx.arc(0, 0, 20, Math.PI * 0.2, Math.PI * 0.8, false);
-		ctx.stroke();
-
-		// Auricular izquierdo
-		ctx.beginPath();
-		if (typeof ctx.roundRect === 'function') {
-			ctx.roundRect(-24, 9, 15, 12, 4);
-		} else {
-			ctx.rect(-24, 9, 15, 12);
-		}
-		ctx.fill();
-
-		// Auricular derecho
-		ctx.beginPath();
-		if (typeof ctx.roundRect === 'function') {
-			ctx.roundRect(9, 9, 15, 12, 4);
-		} else {
-			ctx.rect(9, 9, 15, 12);
-		}
-		ctx.fill();
-
+		ctx.translate(24, 24);
+		ctx.scale(2, 2);
+		const p = new Path2D("M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z");
+		ctx.fill(p);
+		ctx.restore();
+	} else {
+		// Ícono de teléfono usando Path2D (Material Design)
+		ctx.save();
+		ctx.translate(24, 24);
+		ctx.scale(2, 2);
+		const p = new Path2D("M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z");
+		ctx.fill(p);
 		ctx.restore();
 	}
 
@@ -178,7 +146,7 @@ async function urlToPngDataUrl(
 						ctx.fillStyle = bgColor;
 						ctx.fillRect(0, 0, w, h);
 
-						const radius = Math.min(w, h) * 0.06; // 6% curva suave
+						const radius = 12; // Radio de borde fijo de 12px para fotos
 						ctx.beginPath();
 						if (typeof ctx.roundRect === 'function') {
 							ctx.roundRect(0, 0, w, h, radius);
