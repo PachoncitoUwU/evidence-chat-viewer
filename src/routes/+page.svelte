@@ -180,24 +180,70 @@
 					showToast = true;
 				}
 
-				// 3. Respaldo automático a la nube de cualquier chat local guardado previamente
-				for (const localCase of loaded.cases) {
-					if (!cloudIdSet.has(localCase.id)) {
-						const localData = caseDataMap.get(localCase.id);
+				// 3. Respaldo automático a la nube de cualquier chat local o en pantalla guardado previamente
+				for (const c of cases) {
+					if (!cloudIdSet.has(c.id)) {
+						const localData = caseDataMap.get(c.id);
 						if (localData) {
 							uploadCaseToSupabase(
 								username,
-								localCase,
+								c,
 								localData.meta,
 								localData.messages,
 								localData.days
-							).catch((e) => console.warn('Error en auto-sync a la nube de caso local:', e));
+							).then(() => {
+								toastMessage = '☁️ Chat respaldado en tu perfil';
+								toastDetails = `El chat "${c.name}" ya está sincronizado en la nube para @${username}.`;
+								toastType = 'success';
+								showToast = true;
+							}).catch((e) => console.warn('Error en auto-sync a la nube:', e));
 						}
 					}
 				}
 			} catch (err) {
 				console.warn('Error sincronizando con Supabase:', err);
 			}
+		}
+	}
+
+	async function handleManualSyncToCloud(chatId: string) {
+		if (!user || !user.isLoggedIn) {
+			showAuthModal = true;
+			return;
+		}
+		const targetCase = cases.find((c) => c.id === chatId);
+		const data = caseDataMap.get(chatId);
+		if (!targetCase || !data) return;
+
+		toastMessage = '☁️ Subiendo chat a la nube...';
+		toastDetails = `Iniciando respaldo de "${targetCase.name}" en tu perfil @${user.username}`;
+		toastType = 'info';
+		showToast = true;
+
+		try {
+			await uploadCaseToSupabase(
+				user.username,
+				targetCase,
+				data.meta,
+				data.messages,
+				data.days,
+				undefined,
+				(stage, percent) => {
+					toastMessage = stage;
+					toastDetails = `Sincronizando: ${percent}%`;
+					toastType = 'info';
+					showToast = true;
+				}
+			);
+			toastMessage = '✅ Chat respaldado en la nube';
+			toastDetails = `"${targetCase.name}" ya se encuentra disponible online en todos tus dispositivos.`;
+			toastType = 'success';
+			showToast = true;
+		} catch (err: any) {
+			toastMessage = '⚠️ Error en respaldo';
+			toastDetails = err.message || 'Verifica la conexión a internet';
+			toastType = 'error';
+			showToast = true;
 		}
 	}
 
@@ -305,34 +351,48 @@
 			// Guardar en el mapa para no perder al cambiar de caso
 			caseDataMap.set(caseId, { meta: result.meta, messages: result.messages, days: result.days });
 
-			// Guardar en la nube local (IndexedDB) de forma asíncrona y segura
+			// Guardar en la nube local (IndexedDB) en segundo plano
 			if (user && user.isLoggedIn) {
-				await saveUserCasesToCloud(user.username, user.pin, cases, caseDataMap);
+				saveUserCasesToCloud(user.username, user.pin, cases, caseDataMap).catch((err) =>
+					console.warn('Advertencia guardando en IndexedDB:', err)
+				);
 			}
 
 			// Sincronizar automáticamente en Supabase Cloud Database & Storage
-			if (isSupabaseConfigured() && user && user.isLoggedIn) {
-				uploadCaseToSupabase(
-					user.username,
-					newCase,
-					result.meta,
-					result.messages,
-					result.days,
-					result.mediaBlobs,
-					(stage, percent) => {
-						toastMessage = stage;
-						toastDetails = `Sincronización Supabase Cloud: ${percent}%`;
-						toastType = 'info';
+			if (isSupabaseConfigured()) {
+				const syncUser = (user && user.isLoggedIn) ? user.username : null;
+				if (syncUser) {
+					uploadCaseToSupabase(
+						syncUser,
+						newCase,
+						result.meta,
+						result.messages,
+						result.days,
+						result.mediaBlobs,
+						(stage, percent) => {
+							toastMessage = stage;
+							toastDetails = `Sincronización Supabase Cloud (@${syncUser}): ${percent}%`;
+							toastType = 'info';
+							showToast = true;
+						}
+					).then(() => {
+						toastMessage = '☁️ Chat respaldado en la nube';
+						toastDetails = `Disponible automáticamente desde cualquier computador o celular en @${syncUser}.`;
+						toastType = 'success';
 						showToast = true;
-					}
-				).then(() => {
-					toastMessage = '☁️ Chat respaldado en la nube';
-					toastDetails = 'Disponible automáticamente desde cualquier computador o celular.';
-					toastType = 'success';
+					}).catch((e) => {
+						console.error('Error en respaldo Supabase:', e);
+						toastMessage = '⚠️ Error al subir a la nube';
+						toastDetails = e.message || 'Intenta usar el botón ☁️ del menú lateral';
+						toastType = 'error';
+						showToast = true;
+					});
+				} else {
+					toastMessage = '📂 Chat cargado en pantalla';
+					toastDetails = '👉 Inicia sesión con tu usuario y PIN arriba para respaldarlo en la nube.';
+					toastType = 'info';
 					showToast = true;
-				}).catch((e) => {
-					console.warn('Error en respaldo Supabase:', e);
-				});
+				}
 			}
 
 			filter = { year: null, month: null, day: null, searchQuery: '', onlyWithMedia: false };
@@ -501,6 +561,7 @@
 			onNewCase={() => { handleNewCase(); isMobileSidebarOpen = false; }}
 			onOpenAuth={() => { showAuthModal = true; isMobileSidebarOpen = false; }}
 			onDeleteCase={handleDeleteCase}
+			onSyncToCloud={handleManualSyncToCloud}
 			onToggleCollapse={() => (isLeftCollapsed = !isLeftCollapsed)}
 		/>
 	</div>

@@ -10,6 +10,8 @@
 	export let onNewCase: () => void = () => {};
 	export let onOpenAuth: () => void = () => {};
 	export let onDeleteCase: (id: string) => void = () => {};
+	export let onSyncToCloud: (id: string) => void = () => {};
+	export let isSyncingCloud: boolean = false;
 	export let onToggleCollapse: () => void = () => {};
 
 	let filterQuery = '';
@@ -48,33 +50,21 @@
 			<div class="brand-icon">
 				<MessageCircle size={18} color="white" strokeWidth={2} />
 			</div>
-			<span class="brand-name">Chat Viewer</span>
-			<span class="version-pill" title="Compilación en vivo de Vercel ({BUILD_DATE})">{APP_VERSION}</span>
+			<h1 class="brand-title">Evidence Viewer</h1>
 		</div>
-		<div class="header-right-group" style="display: flex; align-items: center; gap: 6px;">
-			<button class="collapse-header-btn" on:click={onToggleCollapse} title="Ocultar panel izquierdo (Modo Enfoque)" style="background: transparent; border: none; color: var(--ink-40, #888); cursor: pointer; padding: 4px; border-radius: 4px; display: flex; align-items: center;">
-				◀
-			</button>
-		</div>
-		<p class="brand-subtitle">Visor de evidencias · <span class="commit-tag">Vercel: {BUILD_COMMIT}</span></p>
-	</header>
 
-	<div class="user-bar">
-		{#if user.isLoggedIn}
-			<div class="user-chip" on:click={onOpenAuth} role="button" tabindex="0">
-				<div class="user-avatar">{user.username.slice(0, 2).toUpperCase()}</div>
-				<div class="user-details">
-					<span class="user-tag">@{user.username}</span>
-					<span class="user-status"><ShieldCheck size={12} color="#25d366" /> Nube Supabase Activa</span>
-				</div>
-			</div>
+		{#if user && user.isLoggedIn}
+			<button class="user-pill-btn" on:click={onOpenAuth} title="Perfil de usuario activo">
+				<ShieldCheck size={14} color="#00a884" />
+				<span class="user-pill-name">@{user.username}</span>
+			</button>
 		{:else}
-			<button class="login-trigger-btn" on:click={onOpenAuth}>
-				<LogIn size={15} />
-				<span>Iniciar Sesión / PIN</span>
+			<button class="login-btn-header" on:click={onOpenAuth} title="Iniciar sesión para guardar en la nube">
+				<LogIn size={14} />
+				<span>Iniciar sesión</span>
 			</button>
 		{/if}
-	</div>
+	</header>
 
 	<div class="search-box">
 		<Search size={14} color="var(--ink-40)" />
@@ -102,6 +92,18 @@
 						<span class="case-meta">{c.description}</span>
 					{/if}
 				</div>
+
+				{#if user && user.isLoggedIn}
+					<button
+						class="sync-cloud-btn"
+						on:click={(e) => { e.stopPropagation(); onSyncToCloud(c.id); }}
+						disabled={isSyncingCloud}
+						title="Forzar respaldo de este chat en Supabase Cloud"
+					>
+						☁️
+					</button>
+				{/if}
+
 				<button
 					class="delete-chat-btn"
 					on:click={(e) => openDeleteConfirm(c, e)}
@@ -112,8 +114,17 @@
 			</div>
 		{:else}
 			<div class="empty-state">
-				<p>Aún no hay chats cargados.</p>
-				<p>Usa el botón de arriba para cargar un archivo de WhatsApp.</p>
+				{#if user && user.isLoggedIn}
+					<p>☁️ No hay chats guardados en tu perfil <strong>@{user.username}</strong>.</p>
+					<p>Carga un archivo arriba para respaldarlo automáticamente en la nube.</p>
+				{:else}
+					<p class="empty-title">🔒 ¿Iniciaste sesión?</p>
+					<p class="empty-desc">Para ver los chats que subiste desde otro dispositivo o computador:</p>
+					<button class="login-prompt-btn" on:click={onOpenAuth}>
+						<LogIn size={15} />
+						<span>Iniciar sesión con tu usuario y PIN</span>
+					</button>
+				{/if}
 			</div>
 		{/each}
 	</nav>

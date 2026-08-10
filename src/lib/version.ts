@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v2.8.0 Cloud';
-export const BUILD_COMMIT = '0a9b8c7';
+export const APP_VERSION = 'v2.8.1 Cloud';
+export const BUILD_COMMIT = '1c2b3a4';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Sincronización prioritaria de textos e imágenes optimizada para ZIPs pesados (>600MB) multi-dispositivo.';
+export const BUILD_NOTES = 'Sincronización automática de chats al iniciar sesión, aviso claro para móviles y botón ☁️ de respaldo manual.';
