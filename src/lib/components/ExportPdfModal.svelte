@@ -14,7 +14,7 @@
 	export let onClose: () => void;
 	export let onExport: (options: PdfExportOptions) => void;
 
-	let activeTab: 'filter' | 'forensic' | 'style' = 'filter';
+	let activeTab: 'filter' | 'style' = 'filter';
 
 	// Rango de fechas
 	let mode: 'all' | 'range' = 'all';
@@ -31,16 +31,12 @@
 	let includeSystemEvents: boolean = false;
 	let includeGhostMessages: boolean = false;
 
-	// Opciones de informe pericial & marca de agua
-	let includeCoverPage: boolean = true;
-	let caseNumber: string = '';
-	let investigatorName: string = '';
-	let courtInstitution: string = '';
+	// Marca de agua
 	let watermarkText: string = 'EVIDENCIA DIGITAL - USO CONFIDENCIAL';
 	let enableWatermark: boolean = false;
 
-	// Estilo visual del PDF
-	let pdfTheme: 'dark' | 'light' | 'legal' = 'dark';
+	// Estilo visual del PDF — por defecto WhatsApp Claro
+	let pdfTheme: 'dark' | 'light' | 'legal' = 'light';
 	let pdfFontSize: number = 8.5;
 
 	$: minDate = messages.length > 0 ? messages[0].date : '';
@@ -120,10 +116,6 @@
 			includeStickers,
 			includeSystemEvents,
 			includeGhostMessages,
-			includeCoverPage,
-			caseNumber: caseNumber.trim() || undefined,
-			investigatorName: investigatorName.trim() || undefined,
-			courtInstitution: courtInstitution.trim() || undefined,
 			watermarkText: enableWatermark ? watermarkText.trim() : undefined,
 			pdfTheme,
 			fontSize: pdfFontSize
@@ -158,13 +150,6 @@
 					on:click={() => (activeTab = 'filter')}
 				>
 					<Filter size={15} /> Contenido y Fechas
-				</button>
-				<button
-					class="tab-btn"
-					class:active={activeTab === 'forensic'}
-					on:click={() => (activeTab = 'forensic')}
-				>
-					<ShieldCheck size={15} /> Datos Periciales
 				</button>
 				<button
 					class="tab-btn"
@@ -272,34 +257,6 @@
 							<span>Mensajes vacíos / omitidos</span>
 						</label>
 					</div>
-
-				{:else if activeTab === 'forensic'}
-					<p class="tab-desc">
-						Agrega metadatos periciales para respaldar la cadena de custodia y validar la exportación legal en tribunales.
-					</p>
-
-					<div class="form-group">
-						<label for="caseNumber">N° de Expediente / Caso / Registro:</label>
-						<input id="caseNumber" type="text" placeholder="Ej. EXP-2025-08492" bind:value={caseNumber} disabled={isExporting} />
-					</div>
-
-					<div class="form-group">
-						<label for="investigatorName">Perito / Investigador a Cargo:</label>
-						<input id="investigatorName" type="text" placeholder="Ej. Lic. Carlos Mendoza" bind:value={investigatorName} disabled={isExporting} />
-					</div>
-
-					<div class="form-group">
-						<label for="courtInstitution">Juzgado / Unidad de Investigación:</label>
-						<input id="courtInstitution" type="text" placeholder="Ej. Fiscalía Especializada N° 4" bind:value={courtInstitution} disabled={isExporting} />
-					</div>
-
-					<label class="toggle-row">
-						<input type="checkbox" bind:checked={includeCoverPage} disabled={isExporting} />
-						<div class="toggle-info">
-							<span class="toggle-title">Incluir Carátula de Informe Pericial</span>
-							<span class="toggle-sub">Añade una portada formal con resumen, fechas, firmas y Hash SHA-256</span>
-						</div>
-					</label>
 
 				{:else if activeTab === 'style'}
 					<div class="section-title">Estilo Visual del PDF</div>
