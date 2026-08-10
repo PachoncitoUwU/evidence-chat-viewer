@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v2.9.0 Cloud';
-export const BUILD_COMMIT = 'f8a7b9c';
+export const APP_VERSION = 'v2.9.1 Cloud';
+export const BUILD_COMMIT = 'a1b2c3d';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Corrección de fechas (2027), generación de PDF súper rápida y proporciones reales de imágenes sin deformar.';
+export const BUILD_NOTES = 'Exportación a PDF ultra-rápida (1-2s) sin compresión en canvas, manteniendo la máxima calidad original y proporciones de imágenes.';

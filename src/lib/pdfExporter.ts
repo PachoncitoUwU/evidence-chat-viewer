@@ -53,6 +53,7 @@ export interface ProcessedImage {
 	dataUrl: string;
 	width: number;
 	height: number;
+	format: 'JPEG' | 'PNG' | 'WEBP';
 }
 
 const imgCache = new Map<string, ProcessedImage>();
@@ -104,84 +105,39 @@ function getCallIconCanvasUrl(isMissed: boolean, isVideo: boolean): string {
 	return dataUrl;
 }
 
-/** Convierte y redimensiona un objectURL/blob URL a base64 Data URL conservando proporciones reales para PDF */
+/** Obtiene dimensiones y metadatos de la imagen de forma ultra-rápida sin re-codificación en canvas */
 async function loadAndProcessImage(
 	url: string,
-	maxDim: number = 600,
-	isSticker: boolean = false,
-	bgColor: string = '#ffffff'
+	isSticker: boolean = false
 ): Promise<ProcessedImage | null> {
 	if (!url) return null;
-	const cacheKey = `${url}_${maxDim}_${isSticker}_${bgColor}`;
-	if (imgCache.has(cacheKey)) return imgCache.get(cacheKey)!;
+	if (imgCache.has(url)) return imgCache.get(url)!;
 	try {
 		const result = await new Promise<ProcessedImage | null>((resolve) => {
 			const img = new Image();
 			img.crossOrigin = 'anonymous';
 			img.onload = () => {
-				try {
-					const naturalW = img.naturalWidth || 300;
-					const naturalH = img.naturalHeight || 200;
+				const naturalW = img.naturalWidth || 300;
+				const naturalH = img.naturalHeight || 200;
 
-					let w = naturalW;
-					let h = naturalH;
-
-					if (w > maxDim || h > maxDim) {
-						if (w > h) {
-							h = Math.round((h * maxDim) / w);
-							w = maxDim;
-						} else {
-							w = Math.round((w * maxDim) / h);
-							h = maxDim;
-						}
-					}
-
-					const canvas = document.createElement('canvas');
-					canvas.width = w;
-					canvas.height = h;
-					const ctx = canvas.getContext('2d');
-					if (!ctx) return resolve(null);
-
-					if (isSticker) {
-						ctx.drawImage(img, 0, 0, w, h);
-						resolve({
-							dataUrl: canvas.toDataURL('image/png'),
-							width: naturalW,
-							height: naturalH
-						});
-					} else {
-						ctx.fillStyle = bgColor;
-						ctx.fillRect(0, 0, w, h);
-
-						const radius = 12;
-						ctx.beginPath();
-						if (typeof ctx.roundRect === 'function') {
-							ctx.roundRect(0, 0, w, h, radius);
-						} else {
-							ctx.moveTo(radius, 0);
-							ctx.arcTo(w, 0, w, h, radius);
-							ctx.arcTo(w, h, 0, h, radius);
-							ctx.arcTo(0, h, 0, 0, radius);
-							ctx.arcTo(0, 0, w, 0, radius);
-							ctx.closePath();
-						}
-						ctx.clip();
-						ctx.drawImage(img, 0, 0, w, h);
-
-						resolve({
-							dataUrl: canvas.toDataURL('image/jpeg', 0.85),
-							width: naturalW,
-							height: naturalH
-						});
-					}
-				} catch {
-					resolve(null);
+				let format: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
+				if (isSticker || url.startsWith('data:image/png') || url.toLowerCase().endsWith('.png')) {
+					format = 'PNG';
+				} else if (url.startsWith('data:image/webp') || url.toLowerCase().endsWith('.webp')) {
+					format = 'WEBP';
 				}
+
+				resolve({
+					dataUrl: url,
+					width: naturalW,
+					height: naturalH,
+					format
+				});
 			};
 			img.onerror = () => resolve(null);
 			img.src = url;
 		});
-		if (result) imgCache.set(cacheKey, result);
+		if (result) imgCache.set(url, result);
 		return result;
 	} catch {
 		return null;
@@ -362,7 +318,7 @@ async function drawMessage(
 		if (att.status === 'omitted' || att.status === 'missing') {
 			attachmentH = 7.0;
 		} else if ((att.kind === 'image' || att.isSticker) && att.previewUrl) {
-			const imgInfo = await loadAndProcessImage(att.previewUrl, 600, att.isSticker, bubbleBg);
+			const imgInfo = await loadAndProcessImage(att.previewUrl, att.isSticker);
 			if (imgInfo) {
 				imgDataUrl = imgInfo.dataUrl;
 				const naturalW = imgInfo.width;
@@ -957,15 +913,13 @@ export async function exportChatToPdf(
 	const imgMessages = exportMessages.filter(
 		(m) => m.attachment && (m.attachment.kind === 'image' || m.attachment.isSticker) && m.attachment.previewUrl
 	);
-	const PARALLEL_BATCH = 20; // Cargar 20 imágenes a la vez en paralelo
+	const PARALLEL_BATCH = 50; // Pre-cargar dimensiones en lotes ultra-rápidos de 50
 	for (let i = 0; i < imgMessages.length; i += PARALLEL_BATCH) {
 		const chunk = imgMessages.slice(i, i + PARALLEL_BATCH);
 		await Promise.all(
 			chunk.map((m) => {
 				const att = m.attachment!;
-				const isOwner = m.senderRole === 'owner';
-				const bgColor = isOwner ? theme.bubbleOutBg : theme.bubbleInBg;
-				return loadAndProcessImage(att.previewUrl!, 600, att.isSticker, bgColor);
+				return loadAndProcessImage(att.previewUrl!, att.isSticker);
 			})
 		);
 		if (onProgress) onProgress(3 + Math.round(((i + PARALLEL_BATCH) / Math.max(imgMessages.length, 1)) * 20));
@@ -1030,10 +984,7 @@ export async function exportChatToPdf(
 				if (msg.attachment) {
 					const att = msg.attachment;
 					if ((att.kind === 'image' || att.isSticker) && att.previewUrl) {
-						const isOwner = msg.senderRole === 'owner';
-						const bgColor = isOwner ? theme.bubbleOutBg : theme.bubbleInBg;
-						const cacheKey = `${att.previewUrl}_600_${att.isSticker}_${bgColor}`;
-						const cached = imgCache.get(cacheKey);
+						const cached = imgCache.get(att.previewUrl);
 						if (cached) {
 							const maxH = att.isSticker ? 32 : 60;
 							const h = (cached.height * innerMaxW) / cached.width;
