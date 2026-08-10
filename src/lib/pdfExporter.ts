@@ -178,13 +178,19 @@ async function urlToPngDataUrl(
 	}
 }
 
-function getImgDims(dataUrl: string): Promise<{ w: number; h: number }> {
-	return new Promise((resolve) => {
-		const img = new Image();
-		img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
-		img.onerror = () => resolve({ w: 100, h: 100 });
-		img.src = dataUrl;
-	});
+function getImgDims(dataUrl: string): { w: number; h: number } {
+	// Fast sync path: decode dims from data URL using a temporary Image
+	// (safe to use synchronously only when the data URL is already in memory)
+	const img = new Image();
+	img.src = dataUrl;
+	if (img.naturalWidth > 0) return { w: img.naturalWidth, h: img.naturalHeight };
+	// Fallback for browsers that don't resolve immediately
+	return { w: 300, h: 200 };
+}
+
+/** Yields to the event loop so the browser doesn't freeze during long PDF builds */
+function yieldToUI(): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 function cleanPdfText(str: string): string {
@@ -356,7 +362,7 @@ async function drawMessage(
 		} else if ((att.kind === 'image' || att.isSticker) && att.previewUrl) {
 			imgDataUrl = await urlToPngDataUrl(att.previewUrl, 450, att.isSticker, bubbleBg);
 			if (imgDataUrl) {
-				const dims = await getImgDims(imgDataUrl);
+				const dims = getImgDims(imgDataUrl);
 				const maxH = att.isSticker ? 32 : 55;
 				imgDrawW = innerMaxW;
 				imgDrawH = (dims.h * imgDrawW) / dims.w;
@@ -930,7 +936,30 @@ export async function exportChatToPdf(
 		return;
 	}
 
-	if (onProgress) onProgress(5);
+	if (onProgress) onProgress(3);
+
+	// ── PRE-CARGA PARALELA DE IMÁGENES (la mayor ganancia de velocidad) ──────────
+	// En vez de cargar cada imagen cuando se dibuja su burbuja (secuencial, lento),
+	// cargamos TODAS las imágenes en paralelo antes de dibujar nada.
+	const imgMessages = exportMessages.filter(
+		(m) => m.attachment && (m.attachment.kind === 'image' || m.attachment.isSticker) && m.attachment.previewUrl
+	);
+	const PARALLEL_BATCH = 8; // 8 imágenes a la vez para no saturar el navegador
+	for (let i = 0; i < imgMessages.length; i += PARALLEL_BATCH) {
+		const chunk = imgMessages.slice(i, i + PARALLEL_BATCH);
+		await Promise.all(
+			chunk.map((m) => {
+				const att = m.attachment!;
+				const isOwner = m.senderRole === 'owner';
+				const bgColor = isOwner ? theme.bubbleOutBg : theme.bubbleInBg;
+				return urlToPngDataUrl(att.previewUrl!, 450, att.isSticker, bgColor);
+			})
+		);
+		// Progreso de pre-carga: 3% → 18%
+		if (onProgress) onProgress(3 + Math.round(((i + PARALLEL_BATCH) / Math.max(imgMessages.length, 1)) * 15));
+	}
+
+	if (onProgress) onProgress(18);
 
 	if (options?.includeCoverPage !== false) {
 		drawCoverPage(pdf, meta, options);
@@ -1012,7 +1041,11 @@ export async function exportChatToPdf(
 			}
 		}
 
-		if (onProgress) onProgress(5 + Math.round(((i + 1) / total) * 88));
+		// Progreso: 18% → 93%
+		if (onProgress) onProgress(18 + Math.round(((i + 1) / total) * 75));
+
+		// Cada 150 mensajes, ceder control al navegador para que no se congele
+		if (i % 150 === 0 && i > 0) await yieldToUI();
 	}
 
 	if (onProgress) onProgress(95);
