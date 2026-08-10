@@ -104,22 +104,71 @@ function normalizeAMPM(hour: number, minute: number, ampm: string | undefined): 
 	return { h: hour, m: minute };
 }
 
-function parseDate(dateStr: string, timeStr: string, ampm: string | undefined) {
+function detectChatDateFormat(lines: string[]): 'MDY' | 'DMY' | 'YMD' {
+	for (const rawLine of lines) {
+		if (!rawLine) continue;
+		const stripped = stripInvisible(rawLine);
+		const m = LINE_RE.exec(stripped) || SYSTEM_RE.exec(stripped);
+		if (!m) continue;
+		const dateStr = m[1];
+		if (!dateStr) continue;
+		const cleanDate = dateStr.replace(/[^\d/.-]/g, '');
+		const parts = cleanDate.split(/[/.-]/).map(Number);
+		if (parts.length !== 3 || parts.some(isNaN)) continue;
+		const [p1, p2] = parts;
+		if (p1 > 1000) return 'YMD';
+		if (p2 > 12 && p1 <= 12) return 'MDY';
+		if (p1 > 12 && p2 <= 12) return 'DMY';
+	}
+	return 'DMY';
+}
+
+function parseDate(
+	dateStr: string,
+	timeStr: string,
+	ampm: string | undefined,
+	detectedFormat: 'MDY' | 'DMY' | 'YMD' = 'DMY'
+) {
 	const cleanDate = dateStr.replace(/[^\d/.-]/g, '');
-	const parts = cleanDate.split(/[/.-]/);
-	if (parts.length !== 3) return null;
-	let [d, mo, y] = parts.map(Number);
-	if (isNaN(d) || isNaN(mo) || isNaN(y)) return null;
-	if (y < 100) y += 2000;
+	const parts = cleanDate.split(/[/.-]/).map(Number);
+	if (parts.length !== 3 || parts.some(isNaN)) return null;
+
+	let d = 1, mo = 1, y = 2026;
+	const [p1, p2, p3] = parts;
+
+	if (p1 > 1000) {
+		y = p1; mo = p2; d = p3;
+	} else if (p3 > 1000) {
+		y = p3;
+		if (p2 > 12 && p1 <= 12) { mo = p1; d = p2; }
+		else if (p1 > 12 && p2 <= 12) { d = p1; mo = p2; }
+		else if (detectedFormat === 'MDY') { mo = p1; d = p2; }
+		else { d = p1; mo = p2; }
+	} else {
+		y = p3 < 100 ? (p3 < 50 ? p3 + 2000 : p3 + 1900) : p3;
+		if (p2 > 12 && p1 <= 12) { mo = p1; d = p2; }
+		else if (p1 > 12 && p2 <= 12) { d = p1; mo = p2; }
+		else if (detectedFormat === 'MDY') { mo = p1; d = p2; }
+		else { d = p1; mo = p2; }
+	}
+
+	mo = Math.min(12, Math.max(1, mo));
+	d = Math.min(31, Math.max(1, d));
+
 	const timeParts = timeStr.split(':');
 	let hour = Number(timeParts[0]);
 	const minute = Number(timeParts[1]);
 	if (isNaN(hour) || isNaN(minute)) return null;
+
 	const norm = normalizeAMPM(hour, minute, ampm);
 	hour = norm.h;
+
 	const isoDate = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 	const isoTime = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-	const tsMs = new Date(`${isoDate}T${isoTime}:00`).getTime();
+
+	const dt = new Date(y, mo - 1, d, hour, minute);
+	const tsMs = dt.getTime();
+
 	return { iso: isoDate, timeIso: isoTime, tsMs };
 }
 
@@ -182,6 +231,8 @@ async function parseTxt(
 	let idx = 0;
 	let lineNum = 0;
 
+	const detectedFormat = detectChatDateFormat(lines);
+
 	// Mapa normalizado en minúsculas de mediaFiles para búsqueda rápida
 	const normalizedMediaMap = new Map<string, Blob>();
 	for (const [key, blob] of mediaFiles.entries()) {
@@ -201,7 +252,7 @@ async function parseTxt(
 		const match = LINE_RE.exec(raw);
 		if (match) {
 			const [, dateStr, timeStr, ampmRaw, senderName, msgText] = match;
-			const parsed = parseDate(dateStr, timeStr, ampmRaw?.trim());
+			const parsed = parseDate(dateStr, timeStr, ampmRaw?.trim(), detectedFormat);
 			if (!parsed) {
 				warnings.push({ lineNumber: lineNum, rawLine, reason: 'unparseable-date' });
 				continue;
@@ -312,7 +363,7 @@ async function parseTxt(
 		const sysMatch = SYSTEM_RE.exec(raw);
 		if (sysMatch) {
 			const [, dateStr, timeStr, ampmRaw, sysText] = sysMatch;
-			const parsed = parseDate(dateStr, timeStr, ampmRaw?.trim());
+			const parsed = parseDate(dateStr, timeStr, ampmRaw?.trim(), detectedFormat);
 			if (parsed) {
 				messages.push({
 					id: `sys-${idx++}`, date: parsed.iso, time: parsed.timeIso, timestampMs: parsed.tsMs,

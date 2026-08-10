@@ -49,9 +49,13 @@ function setTexHex(pdf: jsPDF, hex: string) {
 	pdf.setTextColor(r, g, b);
 }
 
-const imgCache = new Map<string, string>();
+export interface ProcessedImage {
+	dataUrl: string;
+	width: number;
+	height: number;
+}
 
-/** Convierte y redimensiona un objectURL/blob URL a base64 Data URL con esquinas cuadradas para PDF */
+const imgCache = new Map<string, ProcessedImage>();
 const callIconCache = new Map<string, string>();
 
 /** Genera un PNG HD perfecto con el ícono oficial de llamada de WhatsApp (voz o vídeo) */
@@ -80,7 +84,6 @@ function getCallIconCanvasUrl(isMissed: boolean, isVideo: boolean): string {
 	ctx.lineJoin = 'round';
 
 	if (isVideo) {
-		// Ícono de videollamada usando Path2D (Material Design)
 		ctx.save();
 		ctx.translate(24, 24);
 		ctx.scale(2, 2);
@@ -88,7 +91,6 @@ function getCallIconCanvasUrl(isMissed: boolean, isVideo: boolean): string {
 		ctx.fill(p);
 		ctx.restore();
 	} else {
-		// Ícono de teléfono usando Path2D (Material Design)
 		ctx.save();
 		ctx.translate(24, 24);
 		ctx.scale(2, 2);
@@ -102,24 +104,27 @@ function getCallIconCanvasUrl(isMissed: boolean, isVideo: boolean): string {
 	return dataUrl;
 }
 
-/** Convierte y redimensiona un objectURL/blob URL a base64 Data URL optimizado para PDF (JPEG para fotos, PNG para stickers) */
-async function urlToPngDataUrl(
+/** Convierte y redimensiona un objectURL/blob URL a base64 Data URL conservando proporciones reales para PDF */
+async function loadAndProcessImage(
 	url: string,
-	maxDim: number = 450,
+	maxDim: number = 600,
 	isSticker: boolean = false,
 	bgColor: string = '#ffffff'
-): Promise<string | null> {
+): Promise<ProcessedImage | null> {
 	if (!url) return null;
-	const cacheKey = `${url}_${isSticker}_${bgColor}`;
+	const cacheKey = `${url}_${maxDim}_${isSticker}_${bgColor}`;
 	if (imgCache.has(cacheKey)) return imgCache.get(cacheKey)!;
 	try {
-		const result = await new Promise<string | null>((resolve) => {
+		const result = await new Promise<ProcessedImage | null>((resolve) => {
 			const img = new Image();
 			img.crossOrigin = 'anonymous';
 			img.onload = () => {
 				try {
-					let w = img.naturalWidth || 100;
-					let h = img.naturalHeight || 100;
+					const naturalW = img.naturalWidth || 300;
+					const naturalH = img.naturalHeight || 200;
+
+					let w = naturalW;
+					let h = naturalH;
 
 					if (w > maxDim || h > maxDim) {
 						if (w > h) {
@@ -138,15 +143,17 @@ async function urlToPngDataUrl(
 					if (!ctx) return resolve(null);
 
 					if (isSticker) {
-						// Stickers conservan formato PNG transparente
 						ctx.drawImage(img, 0, 0, w, h);
-						resolve(canvas.toDataURL('image/png'));
+						resolve({
+							dataUrl: canvas.toDataURL('image/png'),
+							width: naturalW,
+							height: naturalH
+						});
 					} else {
-						// Para fotos normales: rellenar fondo con el color de la burbuja y redondear esquinas
 						ctx.fillStyle = bgColor;
 						ctx.fillRect(0, 0, w, h);
 
-						const radius = 12; // Radio de borde fijo de 12px para fotos
+						const radius = 12;
 						ctx.beginPath();
 						if (typeof ctx.roundRect === 'function') {
 							ctx.roundRect(0, 0, w, h, radius);
@@ -161,8 +168,11 @@ async function urlToPngDataUrl(
 						ctx.clip();
 						ctx.drawImage(img, 0, 0, w, h);
 
-						// JPEG a 0.80 ocupa ~50KB por imagen (evita RangeError: Invalid string length)
-						resolve(canvas.toDataURL('image/jpeg', 0.80));
+						resolve({
+							dataUrl: canvas.toDataURL('image/jpeg', 0.85),
+							width: naturalW,
+							height: naturalH
+						});
 					}
 				} catch {
 					resolve(null);
@@ -176,16 +186,6 @@ async function urlToPngDataUrl(
 	} catch {
 		return null;
 	}
-}
-
-function getImgDims(dataUrl: string): { w: number; h: number } {
-	// Fast sync path: decode dims from data URL using a temporary Image
-	// (safe to use synchronously only when the data URL is already in memory)
-	const img = new Image();
-	img.src = dataUrl;
-	if (img.naturalWidth > 0) return { w: img.naturalWidth, h: img.naturalHeight };
-	// Fallback for browsers that don't resolve immediately
-	return { w: 300, h: 200 };
 }
 
 /** Yields to the event loop so the browser doesn't freeze during long PDF builds */
@@ -315,7 +315,8 @@ async function drawMessage(
 	msg: ChatMessage,
 	y: number,
 	theme: PdfThemeColors,
-	isGroup: boolean = false
+	isGroup: boolean = false,
+	fontSize: number = 8.5
 ): Promise<DrawResult> {
 	const isOwner = msg.senderRole === 'owner';
 	const time = msg.time.slice(0, 5);
@@ -326,11 +327,12 @@ async function drawMessage(
 	const maxBubbleW = CONTENT_W * 0.72;
 	const bubblePadX = 3.2;
 	const bubblePadY = 2.5;
-	const lineH = 4.8;
 
-	// Tipografía 10.5pt (aprox 13-14px para impresión perfecta)
+	const bodyFontSize = fontSize || 8.5;
+	const lineH = Math.max(3.8, bodyFontSize * 0.52);
+
 	pdf.setFont('helvetica', 'normal');
-	pdf.setFontSize(10.5);
+	pdf.setFontSize(bodyFontSize);
 
 	const innerMaxW = maxBubbleW - bubblePadX * 2 - 2;
 
@@ -360,16 +362,29 @@ async function drawMessage(
 		if (att.status === 'omitted' || att.status === 'missing') {
 			attachmentH = 7.0;
 		} else if ((att.kind === 'image' || att.isSticker) && att.previewUrl) {
-			imgDataUrl = await urlToPngDataUrl(att.previewUrl, 450, att.isSticker, bubbleBg);
-			if (imgDataUrl) {
-				const dims = getImgDims(imgDataUrl);
-				const maxH = att.isSticker ? 32 : 55;
-				imgDrawW = innerMaxW;
-				imgDrawH = (dims.h * imgDrawW) / dims.w;
+			const imgInfo = await loadAndProcessImage(att.previewUrl, 600, att.isSticker, bubbleBg);
+			if (imgInfo) {
+				imgDataUrl = imgInfo.dataUrl;
+				const naturalW = imgInfo.width;
+				const naturalH = imgInfo.height;
+
+				const maxH = att.isSticker ? 32 : 60;
+				const maxW = innerMaxW;
+
+				// Preservar la proporción exacta de la imagen (aspect ratio) sin compresión ni estiramiento
+				imgDrawW = maxW;
+				imgDrawH = (naturalH * imgDrawW) / naturalW;
+
 				if (imgDrawH > maxH) {
 					imgDrawH = maxH;
-					imgDrawW = (dims.w * imgDrawH) / dims.h;
+					imgDrawW = (naturalW * imgDrawH) / naturalH;
 				}
+
+				if (imgDrawW > maxW) {
+					imgDrawW = maxW;
+					imgDrawH = (naturalH * imgDrawW) / naturalW;
+				}
+
 				attachmentH = imgDrawH + 2.0;
 			} else {
 				attachmentH = 8.0;
@@ -939,12 +954,10 @@ export async function exportChatToPdf(
 	if (onProgress) onProgress(3);
 
 	// ── PRE-CARGA PARALELA DE IMÁGENES (la mayor ganancia de velocidad) ──────────
-	// En vez de cargar cada imagen cuando se dibuja su burbuja (secuencial, lento),
-	// cargamos TODAS las imágenes en paralelo antes de dibujar nada.
 	const imgMessages = exportMessages.filter(
 		(m) => m.attachment && (m.attachment.kind === 'image' || m.attachment.isSticker) && m.attachment.previewUrl
 	);
-	const PARALLEL_BATCH = 8; // 8 imágenes a la vez para no saturar el navegador
+	const PARALLEL_BATCH = 20; // Cargar 20 imágenes a la vez en paralelo
 	for (let i = 0; i < imgMessages.length; i += PARALLEL_BATCH) {
 		const chunk = imgMessages.slice(i, i + PARALLEL_BATCH);
 		await Promise.all(
@@ -952,14 +965,13 @@ export async function exportChatToPdf(
 				const att = m.attachment!;
 				const isOwner = m.senderRole === 'owner';
 				const bgColor = isOwner ? theme.bubbleOutBg : theme.bubbleInBg;
-				return urlToPngDataUrl(att.previewUrl!, 450, att.isSticker, bgColor);
+				return loadAndProcessImage(att.previewUrl!, 600, att.isSticker, bgColor);
 			})
 		);
-		// Progreso de pre-carga: 3% → 18%
-		if (onProgress) onProgress(3 + Math.round(((i + PARALLEL_BATCH) / Math.max(imgMessages.length, 1)) * 15));
+		if (onProgress) onProgress(3 + Math.round(((i + PARALLEL_BATCH) / Math.max(imgMessages.length, 1)) * 20));
 	}
 
-	if (onProgress) onProgress(18);
+	if (onProgress) onProgress(23);
 
 	if (options?.includeCoverPage !== false) {
 		drawCoverPage(pdf, meta, options);
@@ -1009,17 +1021,29 @@ export async function exportChatToPdf(
 			try {
 				const innerMaxW = CONTENT_W * 0.72 - 6;
 				const textLines = (msg.text && !msg.callInfo) ? wrapText(pdf, msg.text, innerMaxW) : [];
-				const textH = textLines.length * 4.8;
-				const senderH = (isGroup && !msg.senderRole || msg.senderRole !== 'owner') ? 4.8 : 0;
-				const callH = msg.callInfo ? 9.0 : 0;
+				const fontSizeVal = options?.fontSize || 8.5;
+				const textH = textLines.length * (fontSizeVal * 0.52);
+				const senderH = (isGroup && (!msg.senderRole || msg.senderRole !== 'owner')) ? 4.8 : 0;
+				const callH = msg.callInfo ? 15.0 : 0;
 
 				let attachmentH = 0;
 				if (msg.attachment) {
 					const att = msg.attachment;
-					if (att.kind === 'image' || att.isSticker) attachmentH = 48;
-					else if (att.kind === 'video') attachmentH = 46;
-					else if (att.kind === 'audio') attachmentH = 16;
-					else if (att.kind === 'document') attachmentH = 16;
+					if ((att.kind === 'image' || att.isSticker) && att.previewUrl) {
+						const isOwner = msg.senderRole === 'owner';
+						const bgColor = isOwner ? theme.bubbleOutBg : theme.bubbleInBg;
+						const cacheKey = `${att.previewUrl}_600_${att.isSticker}_${bgColor}`;
+						const cached = imgCache.get(cacheKey);
+						if (cached) {
+							const maxH = att.isSticker ? 32 : 60;
+							const h = (cached.height * innerMaxW) / cached.width;
+							attachmentH = Math.min(maxH, h) + 2.0;
+						} else {
+							attachmentH = 48;
+						}
+					} else if (att.kind === 'video') attachmentH = 44;
+					else if (att.kind === 'audio') attachmentH = 14;
+					else if (att.kind === 'document') attachmentH = 14;
 					else attachmentH = 7.0;
 				}
 
@@ -1033,7 +1057,7 @@ export async function exportChatToPdf(
 					currentY = MARGIN + 4;
 				}
 
-				const result = await drawMessage(pdf, msg, currentY, theme, isGroup);
+				const result = await drawMessage(pdf, msg, currentY, theme, isGroup, fontSizeVal);
 				currentY += result.heightUsed;
 			} catch (err) {
 				console.warn('Error al dibujar mensaje en PDF', err);
@@ -1041,11 +1065,11 @@ export async function exportChatToPdf(
 			}
 		}
 
-		// Progreso: 18% → 93%
-		if (onProgress) onProgress(18 + Math.round(((i + 1) / total) * 75));
+		// Progreso: 23% → 95%
+		if (onProgress) onProgress(23 + Math.round(((i + 1) / total) * 72));
 
-		// Cada 150 mensajes, ceder control al navegador para que no se congele
-		if (i % 150 === 0 && i > 0) await yieldToUI();
+		// Cada 80 mensajes, ceder control al navegador para que no se congele la UI
+		if (i % 80 === 0 && i > 0) await yieldToUI();
 	}
 
 	if (onProgress) onProgress(95);
