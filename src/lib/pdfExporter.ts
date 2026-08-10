@@ -184,15 +184,16 @@ function getThemeColors(theme?: 'dark' | 'light' | 'legal'): PdfThemeColors {
 	if (theme === 'light') {
 		return {
 			name: 'light',
-			pageBg: '#e5ddd5',
+			pageBg: '#efeae2',
 			bubbleOutBg: '#d9fdd3',
 			bubbleOutText: '#111b21',
 			bubbleInBg: '#ffffff',
 			bubbleInText: '#111b21',
 			senderColor: '#00a884',
 			metaColor: '#667781',
-			pillBg: '#e1e6e3',
-			pillText: '#54656f'
+			pillBg: '#ffffff',
+			pillText: '#54656f',
+			borderColor: '#e2e8f0'
 		};
 	}
 	if (theme === 'legal') {
@@ -436,19 +437,31 @@ async function drawMessage(
 				bubbleW - bubblePadX * 2 - 1
 			);
 			drawY += attachmentH;
-		} else if ((att.kind === 'image' || att.isSticker) && imgDataUrl) {
-			try {
-				const format = imgDataUrl.startsWith('data:image/jpeg') ? 'JPEG' : 'PNG';
-				// Foto con esquinas totalmente cuadradas ajustada exacto al contenedor
-				pdf.addImage(imgDataUrl, format, attX, drawY, imgDrawW, imgDrawH);
-			} catch {
-				setFill(pdf, '#2a3942');
-				pdf.rect(attX, drawY, imgDrawW, imgDrawH, 'F');
-				pdf.setFontSize(7.5);
-				setTexHex(pdf, theme.metaColor);
-				drawSingleLineText(pdf, att.fileName || 'Imagen', attX + 2, drawY + imgDrawH / 2, imgDrawW - 4);
+		} else if (att.kind === 'image' || att.isSticker) {
+			if (imgDataUrl) {
+				try {
+					const format = imgDataUrl.startsWith('data:image/jpeg') ? 'JPEG' : 'PNG';
+					// Foto con esquinas ajustadas exactas al contenedor
+					pdf.addImage(imgDataUrl, format, attX, drawY, imgDrawW, imgDrawH);
+				} catch {
+					setFill(pdf, theme.name === 'light' ? '#f0f2f5' : '#2a3942');
+					pdf.rect(attX, drawY, imgDrawW, imgDrawH, 'F');
+					pdf.setFontSize(7.5);
+					setTexHex(pdf, theme.metaColor);
+					drawSingleLineText(pdf, att.fileName || 'Imagen', attX + 2, drawY + imgDrawH / 2, imgDrawW - 4);
+				}
+				drawY += imgDrawH + 2.0;
+			} else {
+				// Tarjeta elegante de foto sin blob local
+				const boxH = 11.0;
+				setFill(pdf, theme.name === 'light' ? '#f0f2f5' : '#182229');
+				roundedRect(pdf, attX, drawY, bubbleW - bubblePadX * 2, boxH, 1.8, 'F');
+				pdf.setFont('helvetica', 'normal');
+				pdf.setFontSize(8.5);
+				setTexHex(pdf, textColor);
+				drawSingleLineText(pdf, `📷 ${att.fileName || 'Imagen de WhatsApp'}`, attX + 3, drawY + 6.5, bubbleW - bubblePadX * 2 - 6);
+				drawY += boxH + 2.0;
 			}
-			drawY += imgDrawH + 2.0;
 		} else if (att.kind === 'video') {
 			setFill(pdf, theme.name === 'light' ? '#e2ebd5' : '#0d1b22');
 			roundedRect(pdf, bubbleX + bubblePadX, drawY, bubbleW - bubblePadX * 2, 11, 1.8, 'F');

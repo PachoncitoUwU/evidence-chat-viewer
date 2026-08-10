@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v2.5.9 Cloud';
-export const BUILD_COMMIT = '676a85a';
+export const APP_VERSION = 'v2.6.0 Cloud';
+export const BUILD_COMMIT = '7717554';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'PDF: tema claro por defecto, sin pestaña periciales, fechas limitadas al rango del chat';
+export const BUILD_NOTES = 'Galería multimedia corregida (muestra todos los adjuntos) y PDF hiperrealista WhatsApp';

@@ -22,7 +22,7 @@
 
 	// Recopilar todos los adjuntos con su contexto de mensaje
 	$: allMedia = messages
-		.filter(m => m.attachment && m.attachment.status === 'linked' && m.attachment.previewUrl)
+		.filter(m => m.attachment && m.attachment.fileName && m.attachment.status !== 'omitted')
 		.map(m => ({
 			msg: m,
 			att: m.attachment!
@@ -32,7 +32,7 @@
 		.filter(m => $hiddenMediaStore.has(m.id))
 		.map(m => ({
 			msg: m,
-			att: m.attachment && m.attachment.status === 'linked' ? m.attachment : null
+			att: m.attachment && m.attachment.status !== 'omitted' ? m.attachment : null
 		}));
 
 	$: visibleMedia = allMedia.filter(item => !$hiddenMediaStore.has(item.msg.id));
@@ -104,6 +104,7 @@
 	}
 
 	function formatDate(iso: string) {
+		if (!iso) return '';
 		const [y,mo,d] = iso.split('-');
 		return `${d}/${mo}/${y}`;
 	}
@@ -183,8 +184,15 @@
 						{#if item.att?.kind === 'image' || item.att?.isSticker}
 							<!-- svelte-ignore a11y-click-events-have-key-events -->
 							<!-- svelte-ignore a11y-no-static-element-interactions -->
-							<div class="thumb-wrap" class:is-sticker-thumb={item.att.isSticker} on:click={() => openLightbox(item.att?.previewUrl!, item.att?.fileName)}>
-								<img src={item.att.previewUrl} alt={item.att.fileName} loading="lazy" class="thumb" class:sticker-img-thumb={item.att.isSticker} />
+							<div class="thumb-wrap" class:is-sticker-thumb={item.att.isSticker} on:click={() => item.att?.previewUrl && openLightbox(item.att.previewUrl, item.att.fileName)}>
+								{#if item.att.previewUrl}
+									<img src={item.att.previewUrl} alt={item.att.fileName} loading="lazy" class="thumb" class:sticker-img-thumb={item.att.isSticker} />
+								{:else}
+									<div class="no-thumb-placeholder">
+										<Image size={32} color="rgba(255,255,255,0.4)" />
+										<span class="no-thumb-name">{item.att.fileName}</span>
+									</div>
+								{/if}
 								<div class="thumb-overlay">
 									<span class="thumb-date">{formatDate(item.msg.date)}</span>
 									<div class="thumb-actions">
@@ -490,9 +498,12 @@
 	}
 	.thumb { width: 100%; height: 100%; object-fit: cover; display: block; }
 	.video-thumb { display: flex; align-items: center; justify-content: center; }
-	.video-placeholder {
-		display: flex; align-items: center; justify-content: center;
-		width: 100%; height: 100%; background: #2a2a2a;
+	.video-placeholder, .no-thumb-placeholder {
+		display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+		width: 100%; height: 100%; background: #2a2a2a; padding: 8px; box-sizing: border-box; text-align: center;
+	}
+	.no-thumb-name {
+		font-size: 10px; color: rgba(255,255,255,0.7); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 	}
 	.thumb-overlay {
 		position: absolute; inset: 0;
