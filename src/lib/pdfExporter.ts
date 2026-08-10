@@ -52,9 +52,93 @@ function setTexHex(pdf: jsPDF, hex: string) {
 const imgCache = new Map<string, string>();
 
 /** Convierte y redimensiona un objectURL/blob URL a base64 Data URL con esquinas cuadradas para PDF */
+const callIconCache = new Map<string, string>();
+
+/** Genera un PNG HD perfecto con el ícono oficial de llamada de WhatsApp (voz o vídeo) */
+function getCallIconCanvasUrl(isMissed: boolean, isVideo: boolean): string {
+	const key = `${isMissed ? 'missed' : 'ok'}_${isVideo ? 'video' : 'voice'}`;
+	if (callIconCache.has(key)) return callIconCache.get(key)!;
+
+	const size = 96;
+	const canvas = document.createElement('canvas');
+	canvas.width = size;
+	canvas.height = size;
+	const ctx = canvas.getContext('2d');
+	if (!ctx) return '';
+
+	// Círculo de fondo (verde o rojo)
+	ctx.fillStyle = isMissed ? '#dc2626' : '#00a884';
+	ctx.beginPath();
+	ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+	ctx.fill();
+
+	// Dibujar ícono blanco de teléfono o videocámara
+	ctx.fillStyle = '#ffffff';
+	ctx.strokeStyle = '#ffffff';
+	ctx.lineWidth = 6;
+	ctx.lineCap = 'round';
+	ctx.lineJoin = 'round';
+
+	if (isVideo) {
+		// Ícono de videollamada
+		ctx.beginPath();
+		if (typeof ctx.roundRect === 'function') {
+			ctx.roundRect(22, 34, 30, 28, 6);
+		} else {
+			ctx.rect(22, 34, 30, 28);
+		}
+		ctx.fill();
+
+		ctx.beginPath();
+		ctx.moveTo(56, 42);
+		ctx.lineTo(74, 31);
+		ctx.lineTo(74, 65);
+		ctx.lineTo(56, 54);
+		ctx.closePath();
+		ctx.fill();
+	} else {
+		// Ícono de auricular de voz (inclinado elegante como WhatsApp)
+		ctx.save();
+		ctx.translate(size / 2, size / 2);
+		ctx.rotate((-35 * Math.PI) / 180);
+
+		// Mango curvo del auricular
+		ctx.beginPath();
+		ctx.lineWidth = 10;
+		ctx.arc(0, 0, 20, Math.PI * 0.2, Math.PI * 0.8, false);
+		ctx.stroke();
+
+		// Auricular izquierdo
+		ctx.beginPath();
+		if (typeof ctx.roundRect === 'function') {
+			ctx.roundRect(-24, 9, 15, 12, 4);
+		} else {
+			ctx.rect(-24, 9, 15, 12);
+		}
+		ctx.fill();
+
+		// Auricular derecho
+		ctx.beginPath();
+		if (typeof ctx.roundRect === 'function') {
+			ctx.roundRect(9, 9, 15, 12, 4);
+		} else {
+			ctx.rect(9, 9, 15, 12);
+		}
+		ctx.fill();
+
+		ctx.restore();
+	}
+
+	const dataUrl = canvas.toDataURL('image/png');
+	callIconCache.set(key, dataUrl);
+	return dataUrl;
+}
+
+/** Convierte y redimensiona un objectURL/blob URL a base64 Data URL con esquinas redondeadas para PDF */
 async function urlToPngDataUrl(
 	url: string,
-	maxDim: number = 600
+	maxDim: number = 600,
+	isSticker: boolean = false
 ): Promise<string | null> {
 	if (!url) return null;
 	if (imgCache.has(url)) return imgCache.get(url)!;
@@ -83,13 +167,27 @@ async function urlToPngDataUrl(
 					const ctx = canvas.getContext('2d');
 					if (!ctx) return resolve(null);
 
-					// Esquinas cuadradas estándar para la foto
+					// Redondear esquinas suaves para la foto (estilo WhatsApp)
+					if (!isSticker) {
+						const radius = Math.min(w, h) * 0.06; // 6% de redondeado suave
+						ctx.beginPath();
+						if (typeof ctx.roundRect === 'function') {
+							ctx.roundRect(0, 0, w, h, radius);
+						} else {
+							ctx.moveTo(radius, 0);
+							ctx.arcTo(w, 0, w, h, radius);
+							ctx.arcTo(w, h, 0, h, radius);
+							ctx.arcTo(0, h, 0, 0, radius);
+							ctx.arcTo(0, 0, w, 0, radius);
+							ctx.closePath();
+						}
+						ctx.clip();
+					}
+
 					ctx.drawImage(img, 0, 0, w, h);
 
-					const isPngOrSticker = url.includes('.webp') || url.includes('.png');
-					const dataUrl = isPngOrSticker
-						? canvas.toDataURL('image/png')
-						: canvas.toDataURL('image/jpeg', 0.88);
+					// Siempre PNG para mantener esquinas transparentes recortadas
+					const dataUrl = canvas.toDataURL('image/png');
 
 					resolve(dataUrl);
 				} catch {
@@ -282,7 +380,7 @@ async function drawMessage(
 		if (att.status === 'omitted' || att.status === 'missing') {
 			attachmentH = 7.0;
 		} else if ((att.kind === 'image' || att.isSticker) && att.previewUrl) {
-			imgDataUrl = await urlToPngDataUrl(att.previewUrl, 600);
+			imgDataUrl = await urlToPngDataUrl(att.previewUrl, 600, att.isSticker);
 			if (imgDataUrl) {
 				const dims = await getImgDims(imgDataUrl);
 				const maxH = att.isSticker ? 32 : 55;
@@ -397,35 +495,37 @@ async function drawMessage(
 	if (msg.callInfo) {
 		const call = msg.callInfo;
 		const isMissed = call.status === 'missed' || call.status === 'declined';
+		const isVideo = call.type === 'video';
 
-		// Círculo grande del ícono (rojo=perdida, verde=completada)
-		const icR = 5.2;
-		const icX = bubbleX + bubblePadX + icR + 1.5;
-		const icY = drawY + 7.5;
-		setFill(pdf, isMissed ? '#dc2626' : '#00a884');
-		pdf.circle(icX, icY, icR, 'F');
+		const callIconData = getCallIconCanvasUrl(isMissed, isVideo);
+		const icDim = 10.4;
+		const icX = bubbleX + bubblePadX + 1.0;
+		const icY = drawY + 2.0;
 
-		// Teléfono simplificado en blanco dentro del círculo
-		setFill(pdf, '#ffffff');
-		pdf.circle(icX - 0.5, icY + 0.5, 1.8, 'F');
-		pdf.rect(icX - 2.8, icY - 0.4, 1.2, 0.9, 'F');
-		pdf.rect(icX + 1.6, icY - 0.4, 1.2, 0.9, 'F');
+		if (callIconData) {
+			try {
+				pdf.addImage(callIconData, 'PNG', icX, icY, icDim, icDim);
+			} catch {
+				setFill(pdf, isMissed ? '#dc2626' : '#00a884');
+				pdf.circle(icX + icDim / 2, icY + icDim / 2, icDim / 2, 'F');
+			}
+		}
 
-		// Título de la llamada
+		const textLeft = icX + icDim + 3.5;
 		const title = isMissed
-			? (call.type === 'video' ? 'Videollamada perdida' : 'Llamada de voz perdida')
-			: (call.type === 'video' ? 'Videollamada' : 'Llamada de voz');
+			? (isVideo ? 'Videollamada perdida' : 'Llamada de voz perdida')
+			: (isVideo ? 'Videollamada' : 'Llamada de voz');
+
 		pdf.setFont('helvetica', 'bold');
 		pdf.setFontSize(9.5);
 		setTexHex(pdf, textColor);
-		drawSingleLineText(pdf, title, bubbleX + bubblePadX + icR * 2 + 4.5, drawY + 6.5, bubbleW - bubblePadX * 2 - icR * 2 - 6);
+		drawSingleLineText(pdf, title, textLeft, drawY + 6.2, bubbleW - bubblePadX * 2 - icDim - 5);
 
-		// Subtítulo
 		pdf.setFont('helvetica', 'normal');
 		pdf.setFontSize(7.8);
 		setTexHex(pdf, theme.metaColor);
 		const callSubtitle = call.duration ? `Duraci\u00f3n: ${call.duration}` : 'Toca para volver a llamar.';
-		pdf.text(callSubtitle, bubbleX + bubblePadX + icR * 2 + 4.5, drawY + 12.0);
+		pdf.text(callSubtitle, textLeft, drawY + 11.2);
 
 		drawY += callH;
 	}
@@ -541,14 +641,14 @@ async function drawMessage(
 				roundedRect(pdf, bx, by, wfBarW, bh, 0.3, 'F');
 			}
 
-			// Duraci\u00f3n debajo de la waveform (esquina inferior izquierda)
+			// Duraci\u00f3n debajo de la waveform (alineada con el inicio de las barras)
 			const audDur = att.durationSeconds
 				? `${Math.floor(att.durationSeconds / 60)}:${Math.floor(att.durationSeconds % 60).toString().padStart(2, '0')}`
 				: '0:00';
 			pdf.setFont('helvetica', 'normal');
 			pdf.setFontSize(7.5);
 			setTexHex(pdf, theme.metaColor);
-			pdf.text(audDur, bubbleX + bubblePadX + 2.0, drawY + 13.2);
+			pdf.text(audDur, wfStartX, drawY + 13.5);
 
 			drawY += attachmentH;
 
