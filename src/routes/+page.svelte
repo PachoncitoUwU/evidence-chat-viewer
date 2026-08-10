@@ -701,9 +701,9 @@
 		background: #0d1418;
 	}
 
-	/* Onboarding dropzone — ocupa columna central, centrado vertical y horizontal */
+	/* Onboarding dropzone — ocupa todo el espacio restante (col 2 + col 3) */
 	.onboarding {
-		grid-column: 2;
+		grid-column: 2 / -1;
 		grid-row: 1;
 		align-self: center;
 		justify-self: center;

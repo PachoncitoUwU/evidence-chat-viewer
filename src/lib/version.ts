@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v2.5.7 Cloud';
-export const BUILD_COMMIT = 'ff1c9bb';
+export const APP_VERSION = 'v2.5.8 Cloud';
+export const BUILD_COMMIT = '610c7df';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Dropzone centrado verticalmente con grid-template-rows, paneles al 100% de alto';
+export const BUILD_NOTES = 'Dropzone centrado en toda el área disponible (columnas 2+3)';
