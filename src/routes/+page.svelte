@@ -491,7 +491,6 @@
 	class:dark={darkMode}
 	class:left-collapsed={isLeftCollapsed}
 	class:right-collapsed={isRightCollapsed}
-	class:onboarding-active={!activeMeta}
 	style="--left-w: {leftWidth}px; --right-w: {rightWidth}px;"
 >
 	<div class="sidebar-wrapper" class:mobile-open={isMobileSidebarOpen} class:collapsed={isLeftCollapsed} style="width: {leftWidth}px;">
@@ -626,14 +625,8 @@
 		position: relative;
 		overflow: hidden;
 	}
-	.app-shell.onboarding-active {
-		grid-template-columns: var(--left-w, 264px) 1fr;
-	}
 	.app-shell.left-collapsed {
 		grid-template-columns: 0px 1fr var(--right-w, 300px);
-	}
-	.app-shell.onboarding-active.left-collapsed {
-		grid-template-columns: 0px 1fr;
 	}
 	.app-shell.right-collapsed {
 		grid-template-columns: var(--left-w, 264px) 1fr 0px;
@@ -642,16 +635,23 @@
 		grid-template-columns: 0px 1fr 0px;
 	}
 
-	.sidebar-wrapper, .timeline-wrapper {
+	/* Sidebar & timeline wrappers fill their grid cell height */
+	.sidebar-wrapper {
+		grid-area: left;
 		height: 100%;
 		min-height: 0;
-		display: flex;
-		flex-direction: column;
 	}
-	.sidebar-wrapper > :global(aside), .timeline-wrapper > :global(aside) {
+	.timeline-wrapper {
+		grid-area: right;
 		height: 100%;
+		min-height: 0;
+	}
+	.sidebar-wrapper :global(aside),
+	.timeline-wrapper :global(aside) {
+		height: 100% !important;
 		min-height: 0;
 		box-sizing: border-box;
+		border-radius: var(--radius-lg);
 	}
 	.sidebar-wrapper.collapsed, .timeline-wrapper.collapsed {
 		display: none;
@@ -700,16 +700,16 @@
 		background: #0d1418;
 	}
 
+	/* Onboarding dropzone — grid-column 2 (the centre column), fills full height */
 	.onboarding {
 		grid-column: 2;
+		grid-row: 1;
 		height: 100%;
-		width: 100%;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
 		gap: var(--space-4);
-		margin: auto 0;
 	}
 	.onboarding :global(.dropzone) {
 		width: min(560px, 100%);
