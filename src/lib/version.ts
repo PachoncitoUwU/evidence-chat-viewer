@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v2.7.1 Cloud';
-export const BUILD_COMMIT = '8c1e4f2';
+export const APP_VERSION = 'v2.7.2 Cloud';
+export const BUILD_COMMIT = '9e4a1b0';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'PDF: ícono de llamada HD oficial, esquinas redondeadas recortadas en fotos y audio con duración alineada a waveform';
+export const BUILD_NOTES = 'PDF: optimización de memoria de imágenes (JPEG 80% + cache) que soluciona Invalid string length';

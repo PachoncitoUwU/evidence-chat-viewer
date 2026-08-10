@@ -134,14 +134,16 @@ function getCallIconCanvasUrl(isMissed: boolean, isVideo: boolean): string {
 	return dataUrl;
 }
 
-/** Convierte y redimensiona un objectURL/blob URL a base64 Data URL con esquinas redondeadas para PDF */
+/** Convierte y redimensiona un objectURL/blob URL a base64 Data URL optimizado para PDF (JPEG para fotos, PNG para stickers) */
 async function urlToPngDataUrl(
 	url: string,
-	maxDim: number = 600,
-	isSticker: boolean = false
+	maxDim: number = 450,
+	isSticker: boolean = false,
+	bgColor: string = '#ffffff'
 ): Promise<string | null> {
 	if (!url) return null;
-	if (imgCache.has(url)) return imgCache.get(url)!;
+	const cacheKey = `${url}_${isSticker}_${bgColor}`;
+	if (imgCache.has(cacheKey)) return imgCache.get(cacheKey)!;
 	try {
 		const result = await new Promise<string | null>((resolve) => {
 			const img = new Image();
@@ -167,9 +169,16 @@ async function urlToPngDataUrl(
 					const ctx = canvas.getContext('2d');
 					if (!ctx) return resolve(null);
 
-					// Redondear esquinas suaves para la foto (estilo WhatsApp)
-					if (!isSticker) {
-						const radius = Math.min(w, h) * 0.06; // 6% de redondeado suave
+					if (isSticker) {
+						// Stickers conservan formato PNG transparente
+						ctx.drawImage(img, 0, 0, w, h);
+						resolve(canvas.toDataURL('image/png'));
+					} else {
+						// Para fotos normales: rellenar fondo con el color de la burbuja y redondear esquinas
+						ctx.fillStyle = bgColor;
+						ctx.fillRect(0, 0, w, h);
+
+						const radius = Math.min(w, h) * 0.06; // 6% curva suave
 						ctx.beginPath();
 						if (typeof ctx.roundRect === 'function') {
 							ctx.roundRect(0, 0, w, h, radius);
@@ -182,14 +191,11 @@ async function urlToPngDataUrl(
 							ctx.closePath();
 						}
 						ctx.clip();
+						ctx.drawImage(img, 0, 0, w, h);
+
+						// JPEG a 0.80 ocupa ~50KB por imagen (evita RangeError: Invalid string length)
+						resolve(canvas.toDataURL('image/jpeg', 0.80));
 					}
-
-					ctx.drawImage(img, 0, 0, w, h);
-
-					// Siempre PNG para mantener esquinas transparentes recortadas
-					const dataUrl = canvas.toDataURL('image/png');
-
-					resolve(dataUrl);
 				} catch {
 					resolve(null);
 				}
@@ -197,7 +203,7 @@ async function urlToPngDataUrl(
 			img.onerror = () => resolve(null);
 			img.src = url;
 		});
-		if (result) imgCache.set(url, result);
+		if (result) imgCache.set(cacheKey, result);
 		return result;
 	} catch {
 		return null;
@@ -380,7 +386,7 @@ async function drawMessage(
 		if (att.status === 'omitted' || att.status === 'missing') {
 			attachmentH = 7.0;
 		} else if ((att.kind === 'image' || att.isSticker) && att.previewUrl) {
-			imgDataUrl = await urlToPngDataUrl(att.previewUrl, 600, att.isSticker);
+			imgDataUrl = await urlToPngDataUrl(att.previewUrl, 450, att.isSticker, bubbleBg);
 			if (imgDataUrl) {
 				const dims = await getImgDims(imgDataUrl);
 				const maxH = att.isSticker ? 32 : 55;
@@ -912,6 +918,8 @@ export async function exportChatToPdf(
 	options?: PdfExportOptions,
 	onProgress?: (pct: number) => void
 ): Promise<void> {
+	imgCache.clear();
+	callIconCache.clear();
 	const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
 	const theme = getThemeColors(options?.pdfTheme);
 
