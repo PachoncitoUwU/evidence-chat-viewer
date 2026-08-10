@@ -70,7 +70,8 @@ export async function uploadCaseToSupabase(
 		);
 
 	if (chatError) {
-		console.warn('Advertencia guardando tabla chats en Supabase:', chatError.message);
+		console.error('Error guardando tabla chats en Supabase:', chatError.message);
+		throw new Error(`Error en Supabase (chats): ${chatError.message}`);
 	}
 
 	// 2. Subir adjuntos multimedia al bucket `chat-media`
@@ -142,12 +143,12 @@ export async function uploadCaseToSupabase(
 				chat_id: chatId,
 				user_id: cleanUser,
 				msg_index: i + idx,
-				timestamp: msg.timestampMs || new Date(msg.date).getTime(),
-				date_str: msg.date,
-				time_str: msg.time,
-				sender: msg.senderName,
+				timestamp: Math.floor(msg.timestampMs || (msg.date ? new Date(msg.date).getTime() : Date.now()) || Date.now()),
+				date_str: msg.date || '',
+				time_str: msg.time || '',
+				sender: msg.senderName || 'Usuario',
 				is_me: msg.senderRole === 'owner',
-				is_system: msg.isSystemEvent || false,
+				is_system: Boolean(msg.isSystemEvent),
 				text: msg.text || '',
 				media_file_name: mediaFileName,
 				media_type: mediaType,
@@ -164,7 +165,8 @@ export async function uploadCaseToSupabase(
 			.upsert(messageRecords, { onConflict: 'id' });
 
 		if (msgInsertError) {
-			console.warn('Error insertando lote de mensajes en Supabase:', msgInsertError.message);
+			console.error('Error insertando lote de mensajes en Supabase:', msgInsertError.message);
+			throw new Error(`Error en Supabase (mensajes): ${msgInsertError.message}`);
 		}
 
 		if (onProgress) {
@@ -230,15 +232,25 @@ export async function loadSupabaseChatSession(
 		return null;
 	}
 
-	const { data: msgRows, error: msgError } = await supabase
-		.from('messages')
-		.select('*')
-		.eq('chat_id', chatId)
-		.order('msg_index', { ascending: true });
+	let msgRows: any[] = [];
+	let fromIndex = 0;
+	const pageSize = 1000;
+	while (true) {
+		const { data: chunk, error: msgError } = await supabase
+			.from('messages')
+			.select('*')
+			.eq('chat_id', chatId)
+			.order('msg_index', { ascending: true })
+			.range(fromIndex, fromIndex + pageSize - 1);
 
-	if (msgError) {
-		console.warn('Error al cargar mensajes desde Supabase:', msgError.message);
-		return null;
+		if (msgError) {
+			console.warn('Error al cargar mensajes desde Supabase:', msgError.message);
+			break;
+		}
+		if (!chunk || chunk.length === 0) break;
+		msgRows.push(...chunk);
+		if (chunk.length < pageSize) break;
+		fromIndex += pageSize;
 	}
 
 	const messages: ChatMessage[] = (msgRows || []).map((row, idx) => {
