@@ -74,59 +74,12 @@ export async function uploadCaseToSupabase(
 		throw new Error(`Error en Supabase (chats): ${chatError.message}`);
 	}
 
-	// 2. Subir adjuntos multimedia al bucket `chat-media`
-	const mediaUrlMap = new Map<string, string>();
-
-	if (mediaBlobs && mediaBlobs.size > 0) {
-		let uploadedCount = 0;
-		const totalBlobs = mediaBlobs.size;
-		const entries = Array.from(mediaBlobs.entries());
-
-		// Lotes de 5 descargas concurrentes
-		const batchSize = 5;
-		for (let i = 0; i < entries.length; i += batchSize) {
-			const chunk = entries.slice(i, i + batchSize);
-
-			await Promise.all(
-				chunk.map(async ([fileName, blob]) => {
-					const sanitizeFileName = fileName.replace(/[^a-zA-Z0-9_.-]/g, '_');
-					const storagePath = `${cleanUser}/${chatId}/${sanitizeFileName}`;
-
-					const { error: uploadError } = await supabase.storage
-						.from('chat-media')
-						.upload(storagePath, blob, {
-							cacheControl: '3600',
-							upsert: true
-						});
-
-					if (!uploadError) {
-						const { data: publicUrlData } = supabase.storage
-							.from('chat-media')
-							.getPublicUrl(storagePath);
-
-						if (publicUrlData?.publicUrl) {
-							mediaUrlMap.set(fileName, publicUrlData.publicUrl);
-							mediaUrlMap.set(fileName.toLowerCase(), publicUrlData.publicUrl);
-						}
-					} else {
-						console.warn(`Error al subir ${fileName} a Storage:`, uploadError);
-					}
-				})
-			);
-
-			uploadedCount += chunk.length;
-			if (onProgress) {
-				const percent = 10 + Math.round((uploadedCount / totalBlobs) * 45);
-				onProgress(`Subiendo archivos multimedia (${uploadedCount}/${totalBlobs})...`, percent);
-			}
-		}
-	}
-
-	// 3. Guardado en lotes de 300 mensajes en la tabla `messages`
-	if (onProgress) onProgress('Sincronizando mensajes en PostgreSQL...', 55);
+	// 2. PASO CRÍTICO: Guardar TODOS los mensajes INMEDIATAMENTE en la base de datos (Ultra-rápido: ~3 segundos)
+	// Esto garantiza que el chat completo ya sea visible desde cualquier celular o PC de inmediato.
+	if (onProgress) onProgress('Sincronizando mensajes de texto en la nube...', 25);
 
 	const totalMsgs = messages.length;
-	const dbBatchSize = 300;
+	const dbBatchSize = 500;
 
 	for (let i = 0; i < totalMsgs; i += dbBatchSize) {
 		const chunk = messages.slice(i, i + dbBatchSize);
@@ -134,9 +87,6 @@ export async function uploadCaseToSupabase(
 		const messageRecords = chunk.map((msg, idx) => {
 			const mediaFileName = msg.attachment?.fileName || null;
 			const mediaType = msg.attachment?.kind || null;
-			const cloudMediaUrl = mediaFileName
-				? mediaUrlMap.get(mediaFileName) || mediaUrlMap.get(mediaFileName.toLowerCase()) || msg.attachment?.previewUrl || null
-				: null;
 
 			return {
 				id: msg.id || `${chatId}_msg_${i + idx}`,
@@ -152,7 +102,7 @@ export async function uploadCaseToSupabase(
 				text: msg.text || '',
 				media_file_name: mediaFileName,
 				media_type: mediaType,
-				media_url: cloudMediaUrl,
+				media_url: msg.attachment?.previewUrl?.startsWith('http') ? msg.attachment.previewUrl : null,
 				raw_line: msg.sourceLine || '',
 				hash: '',
 				bookmarked: false,
@@ -171,8 +121,74 @@ export async function uploadCaseToSupabase(
 
 		if (onProgress) {
 			const currentDone = Math.min(i + dbBatchSize, totalMsgs);
-			const percent = 55 + Math.round((currentDone / totalMsgs) * 40);
+			const percent = 25 + Math.round((currentDone / totalMsgs) * 35);
 			onProgress(`Sincronizando mensajes (${currentDone}/${totalMsgs})...`, percent);
+		}
+	}
+
+	// 3. Subir adjuntos multimedia al bucket `chat-media` (Procesamiento robusto para ZIPs pesados >600MB)
+	if (mediaBlobs && mediaBlobs.size > 0) {
+		if (onProgress) onProgress('Subiendo archivos multimedia y fotos...', 60);
+
+		let uploadedCount = 0;
+		const totalBlobs = mediaBlobs.size;
+		const entries = Array.from(mediaBlobs.entries());
+		const mediaUrlMap = new Map<string, string>();
+
+		// Lotes de 8 descargas concurrentes optimizadas
+		const batchSize = 8;
+		const MAX_FILE_SIZE_BYTES = 48 * 1024 * 1024; // Límite seguro de 48MB por archivo individual para Supabase Storage
+
+		for (let i = 0; i < entries.length; i += batchSize) {
+			const chunk = entries.slice(i, i + batchSize);
+
+			await Promise.all(
+				chunk.map(async ([fileName, blob]) => {
+					try {
+						// Ignorar archivos excesivamente grandes (>48MB) para evitar caídas de Storage
+						if (blob.size > MAX_FILE_SIZE_BYTES) {
+							console.warn(`Omitiendo ${fileName} por superar el límite individual de Storage (48MB)`);
+							return;
+						}
+
+						const sanitizeFileName = fileName.replace(/[^a-zA-Z0-9_.-]/g, '_');
+						const storagePath = `${cleanUser}/${chatId}/${sanitizeFileName}`;
+
+						const { error: uploadError } = await supabase.storage
+							.from('chat-media')
+							.upload(storagePath, blob, {
+								cacheControl: '3600',
+								upsert: true
+							});
+
+						if (!uploadError) {
+							const { data: publicUrlData } = supabase.storage
+								.from('chat-media')
+								.getPublicUrl(storagePath);
+
+							if (publicUrlData?.publicUrl) {
+								mediaUrlMap.set(fileName, publicUrlData.publicUrl);
+								mediaUrlMap.set(fileName.toLowerCase(), publicUrlData.publicUrl);
+
+								// Actualización asíncrona de la URL del mensaje en la base de datos
+								await supabase
+									.from('messages')
+									.update({ media_url: publicUrlData.publicUrl })
+									.eq('chat_id', chatId)
+									.eq('media_file_name', fileName);
+							}
+						}
+					} catch (err) {
+						console.warn(`Error secundario al subir adjunto ${fileName}:`, err);
+					}
+				})
+			);
+
+			uploadedCount += chunk.length;
+			if (onProgress) {
+				const percent = 60 + Math.round((uploadedCount / totalBlobs) * 40);
+				onProgress(`Subiendo archivos multimedia (${uploadedCount}/${totalBlobs})...`, percent);
+			}
 		}
 	}
 
