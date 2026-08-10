@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v2.5.3 Cloud';
-export const BUILD_COMMIT = 'ff9e44e';
+export const APP_VERSION = 'v2.5.4 Cloud';
+export const BUILD_COMMIT = '6d3b774';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Integración oficial Supabase Cloud, auto-sync de chats pesados (+600MB), paneles colapsables y control de fuente';
+export const BUILD_NOTES = 'Eliminación segura de chats en Supabase y paneles laterales estirables/ajustables';
