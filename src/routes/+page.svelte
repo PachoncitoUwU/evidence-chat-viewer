@@ -616,6 +616,7 @@
 	.app-shell {
 		display: grid;
 		grid-template-columns: var(--left-w, 264px) 1fr var(--right-w, 300px);
+		grid-template-rows: 1fr;
 		grid-template-areas: 'left main right';
 		gap: var(--space-4);
 		height: 100vh;
@@ -700,11 +701,13 @@
 		background: #0d1418;
 	}
 
-	/* Onboarding dropzone — grid-column 2 (the centre column), fills full height */
+	/* Onboarding dropzone — ocupa columna central, centrado vertical y horizontal */
 	.onboarding {
 		grid-column: 2;
 		grid-row: 1;
-		height: 100%;
+		align-self: center;
+		justify-self: center;
+		width: 100%;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
