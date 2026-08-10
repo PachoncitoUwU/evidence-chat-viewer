@@ -22,9 +22,35 @@ export interface CloudChatSummary {
 	createdAt: string;
 }
 
+function safeIsoDate(val: any): string | null {
+	if (!val) return null;
+	try {
+		const d = new Date(val);
+		if (isNaN(d.getTime())) return null;
+		return d.toISOString();
+	} catch {
+		return null;
+	}
+}
+
+function safeTimestamp(msg: ChatMessage): number {
+	if (typeof msg.timestampMs === 'number' && !isNaN(msg.timestampMs) && msg.timestampMs > 0) {
+		return Math.floor(msg.timestampMs);
+	}
+	if (msg.date) {
+		try {
+			const parsed = new Date(msg.date).getTime();
+			if (!isNaN(parsed) && parsed > 0) return Math.floor(parsed);
+		} catch {
+			// ignore
+		}
+	}
+	return Date.now();
+}
+
 /**
  * Suba un caso completo con sus mensajes y archivos multimedia extraídos del ZIP a Supabase.
- * Procesa en lotes paralelos (5 archivos simultáneos) y bloques de 300 filas para PostgreSQL REST.
+ * Procesa en lotes paralelos (8 archivos simultáneos) y bloques de 500 filas para PostgreSQL REST.
  */
 export async function uploadCaseToSupabase(
 	userKey: string,
@@ -56,8 +82,8 @@ export async function uploadCaseToSupabase(
 				parsed_date: new Date().toISOString(),
 				total_messages: meta.totalMessages || messages.length,
 				total_media: (meta.totalMediaLinked || 0) + (meta.totalMediaMissing || 0),
-				start_date: meta.dateRangeStart ? new Date(meta.dateRangeStart).toISOString() : null,
-				end_date: meta.dateRangeEnd ? new Date(meta.dateRangeEnd).toISOString() : null,
+				start_date: safeIsoDate(meta.dateRangeStart),
+				end_date: safeIsoDate(meta.dateRangeEnd),
 				timeline_json: days || [],
 				participants_json: meta.participants || [],
 				metadata_json: {
@@ -93,7 +119,7 @@ export async function uploadCaseToSupabase(
 				chat_id: chatId,
 				user_id: cleanUser,
 				msg_index: i + idx,
-				timestamp: Math.floor(msg.timestampMs || (msg.date ? new Date(msg.date).getTime() : Date.now()) || Date.now()),
+				timestamp: safeTimestamp(msg),
 				date_str: msg.date || '',
 				time_str: msg.time || '',
 				sender: msg.senderName || 'Usuario',

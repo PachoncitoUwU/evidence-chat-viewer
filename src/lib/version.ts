@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v2.8.1 Cloud';
-export const BUILD_COMMIT = '1c2b3a4';
+export const APP_VERSION = 'v2.8.2 Cloud';
+export const BUILD_COMMIT = 'b2c3d4e';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Sincronización automática de chats al iniciar sesión, aviso claro para móviles y botón ☁️ de respaldo manual.';
+export const BUILD_NOTES = 'Fix crítico: fechas WhatsApp en formato YYYY-DD-MM ya no rompen el guardado en Supabase.';
