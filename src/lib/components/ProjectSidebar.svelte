@@ -9,28 +9,14 @@
 	export let onSelectCase: (id: string) => void = () => {};
 	export let onNewCase: () => void = () => {};
 	export let onOpenAuth: () => void = () => {};
-	export let onExportProfileBackup: () => void = () => {};
-	export let onImportProfileBackup: (file: File) => void = () => {};
 	export let onToggleCollapse: () => void = () => {};
 
 	let filterQuery = '';
-	let backupFileInput: HTMLInputElement;
 
 	$: user = $authStore;
 	$: visibleCases = cases.filter((c) =>
 		c.name.toLowerCase().includes(filterQuery.trim().toLowerCase())
 	);
-
-	function triggerImport() {
-		if (backupFileInput) backupFileInput.click();
-	}
-	function handleBackupFile(e: Event) {
-		const target = e.target as HTMLInputElement;
-		if (target.files && target.files[0]) {
-			onImportProfileBackup(target.files[0]);
-			target.value = '';
-		}
-	}
 </script>
 
 <aside class="sidebar glass-panel">
@@ -56,7 +42,7 @@
 				<div class="user-avatar">{user.username.slice(0, 2).toUpperCase()}</div>
 				<div class="user-details">
 					<span class="user-tag">@{user.username}</span>
-					<span class="user-status"><ShieldCheck size={12} color="#25d366" /> Nube Sincronizada</span>
+					<span class="user-status"><ShieldCheck size={12} color="#25d366" /> Nube Supabase Activa</span>
 				</div>
 			</div>
 		{:else}
@@ -76,20 +62,6 @@
 		<Plus size={16} strokeWidth={2.5} />
 		<span>Cargar otro chat</span>
 	</button>
-
-	{#if cases.length > 0}
-		<div class="backup-box">
-			<button class="backup-btn export-btn" on:click={onExportProfileBackup} title="Guardar respaldo .chatpack con los chats para usar en celular u otro PC">
-				<Download size={13} />
-				<span>Respaldar (.chatpack)</span>
-			</button>
-			<button class="backup-btn import-btn" on:click={triggerImport} title="Cargar respaldo .chatpack en este computador o celular">
-				<Upload size={13} />
-				<span>Restaurar Perfil</span>
-			</button>
-			<input type="file" accept=".chatpack,.json" bind:this={backupFileInput} on:change={handleBackupFile} style="display:none;" />
-		</div>
-	{/if}
 
 	<nav class="case-list">
 		{#each visibleCases as c (c.id)}

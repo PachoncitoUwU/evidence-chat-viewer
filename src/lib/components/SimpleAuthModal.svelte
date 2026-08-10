@@ -118,7 +118,7 @@
 					<div class="user-info">
 						<span class="welcome">Perfil activo:</span>
 						<strong class="username">@{user.username}</strong>
-						<span class="status-pill">✅ Sincronización en Nube Local Activa</span>
+						<span class="status-pill">☁️ Sincronización en Nube Supabase Activa</span>
 					</div>
 					<button class="logout-btn" on:click={() => authStore.logout()}>
 						Cerrar Sesión / Cambiar de Perfil
@@ -177,7 +177,7 @@
 					{/if}
 
 					<div class="hint">
-						💡 <strong>¿Cómo funciona?</strong> No requiere correo electrónico. Al registrar tu usuario y tu PIN, todos los archivos .ZIP que proceses se guardarán automáticamente en tu base de datos y no se borrarán al recargar.
+						☁️ <strong>Sincronización Automática Supabase:</strong> Al iniciar sesión con tu usuario y tu PIN, todos los chats y fotos que cargues quedan en la nube automáticamente para abrirlos desde cualquier computador o celular sin hacer nada manual.
 					</div>
 
 					<button type="submit" class="submit-btn" disabled={isLoading}>

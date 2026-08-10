@@ -74,8 +74,11 @@
 	async function loadUserSessionData(username: string, pin: string) {
 		// 1. Cargar almacenamiento local (IndexedDB)
 		const loaded = await loadUserCasesFromCloud(username, pin);
+		const caseMapById = new Map<string, EvidenceCase>();
+
 		if (loaded.cases.length > 0) {
-			cases = loaded.cases;
+			loaded.cases.forEach((c) => caseMapById.set(c.id, c));
+			cases = Array.from(caseMapById.values());
 			loaded.caseDataMap.forEach((v, k) => caseDataMap.set(k, v));
 			if (!activeCaseId || !caseDataMap.has(activeCaseId)) {
 				const firstCase = loaded.cases[0];
@@ -87,12 +90,14 @@
 		if (isSupabaseConfigured()) {
 			try {
 				const cloudSummaries = await fetchUserSupabaseChats(username);
+				const cloudIdSet = new Set(cloudSummaries.map((s) => s.id));
 				let cloudLoadedCount = 0;
+
 				for (const summary of cloudSummaries) {
 					if (!caseDataMap.has(summary.id)) {
 						const cloudData = await loadSupabaseChatSession(summary.id);
 						if (cloudData) {
-							cases = [cloudData.caseInfo, ...cases];
+							caseMapById.set(cloudData.caseInfo.id, cloudData.caseInfo);
 							caseDataMap.set(summary.id, {
 								meta: cloudData.meta,
 								messages: cloudData.messages,
@@ -102,6 +107,9 @@
 						}
 					}
 				}
+
+				cases = Array.from(caseMapById.values());
+
 				if (cases.length > 0 && (!activeCaseId || !caseDataMap.has(activeCaseId))) {
 					selectCase(cases[0].id);
 				}
@@ -110,6 +118,22 @@
 					toastDetails = `Se cargaron ${cloudLoadedCount} chat(s) recuperados desde Supabase.`;
 					toastType = 'success';
 					showToast = true;
+				}
+
+				// 3. Respaldo automático a la nube de cualquier chat local guardado previamente
+				for (const localCase of loaded.cases) {
+					if (!cloudIdSet.has(localCase.id)) {
+						const localData = caseDataMap.get(localCase.id);
+						if (localData) {
+							uploadCaseToSupabase(
+								username,
+								localCase,
+								localData.meta,
+								localData.messages,
+								localData.days
+							).catch((e) => console.warn('Error en auto-sync a la nube de caso local:', e));
+						}
+					}
 				}
 			} catch (err) {
 				console.warn('Error sincronizando con Supabase:', err);
@@ -410,8 +434,6 @@
 			onSelectCase={handleSelectCaseMobile}
 			onNewCase={() => { handleNewCase(); isMobileSidebarOpen = false; }}
 			onOpenAuth={() => { showAuthModal = true; isMobileSidebarOpen = false; }}
-			onExportProfileBackup={handleExportBackup}
-			onImportProfileBackup={handleImportBackup}
 			onToggleCollapse={() => (isLeftCollapsed = !isLeftCollapsed)}
 		/>
 	</div>
