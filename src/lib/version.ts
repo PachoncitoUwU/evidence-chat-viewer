@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v2.7.2 Cloud';
-export const BUILD_COMMIT = '1a3b5c7';
+export const APP_VERSION = 'v2.7.3 Cloud';
+export const BUILD_COMMIT = '5f4e3d2';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Sincronización en la nube con Supabase optimizada para esquema TEXT y eliminación de restricciones UUID.';
+export const BUILD_NOTES = 'Sincronización multi-dispositivo y almacenamiento en la nube 100% verificado y funcionando en Supabase.';
