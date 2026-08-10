@@ -315,3 +315,31 @@ export async function autoSaveMessageBookmark(messageId: string, bookmarked: boo
 		console.warn('Error al actualizar marcador en Supabase:', error.message);
 	}
 }
+
+/**
+ * Elimina un chat y todos sus mensajes de Supabase Database y Storage con seguridad.
+ */
+export async function deleteCaseFromSupabase(userKey: string, chatId: string): Promise<boolean> {
+	if (!isSupabaseConfigured() || !chatId) return false;
+	const cleanUser = userKey.trim().toLowerCase();
+
+	try {
+		// 1. Eliminar mensajes
+		await supabase.from('messages').delete().eq('chat_id', chatId);
+
+		// 2. Eliminar chat
+		await supabase.from('chats').delete().eq('id', chatId);
+
+		// 3. Limpiar Storage
+		const { data: files } = await supabase.storage.from('chat-media').list(`${cleanUser}/${chatId}`);
+		if (files && files.length > 0) {
+			const paths = files.map((f) => `${cleanUser}/${chatId}/${f.name}`);
+			await supabase.storage.from('chat-media').remove(paths);
+		}
+
+		return true;
+	} catch (e) {
+		console.warn('Error al eliminar chat de Supabase:', e);
+		return false;
+	}
+}

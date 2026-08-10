@@ -12,10 +12,10 @@
 	import { exportChatToPdf, type PdfExportOptions } from '$lib/pdfExporter';
 	import { chatConfig } from '$lib/stores/chatConfig';
 	import { authStore } from '$lib/stores/authStore';
-	import { saveUserCasesToCloud, loadUserCasesFromCloud } from '$lib/cloudStorage';
+	import { saveUserCasesToCloud, loadUserCasesFromCloud, deleteCaseFromLocal } from '$lib/cloudStorage';
 	import { hiddenMediaStore } from '$lib/stores/hiddenMediaStore';
 	import { isSupabaseConfigured } from '$lib/supabaseClient';
-	import { uploadCaseToSupabase, fetchUserSupabaseChats, loadSupabaseChatSession } from '$lib/services/syncService';
+	import { uploadCaseToSupabase, fetchUserSupabaseChats, loadSupabaseChatSession, deleteCaseFromSupabase } from '$lib/services/syncService';
 	import type { EvidenceCase, ChatMeta, ChatMessage, DaySummary, EvidenceFilter } from '$types/chat.types';
 
 	let cases: EvidenceCase[] = [];
@@ -24,9 +24,69 @@
 	let activeMessages: ChatMessage[] = [];
 	let activeDays: DaySummary[] = [];
 
-	// Estado de paneles laterales colapsables (Modo Enfoque)
+	// Estado de paneles laterales colapsables y ajustables por arrastre
 	let isLeftCollapsed = false;
 	let isRightCollapsed = false;
+	let leftWidth = 264;
+	let rightWidth = 300;
+	let isResizingLeft = false;
+	let isResizingRight = false;
+
+	function startResizeLeft(e: MouseEvent) {
+		e.preventDefault();
+		isResizingLeft = true;
+		window.addEventListener('mousemove', handleMouseMove);
+		window.addEventListener('mouseup', stopResize);
+	}
+
+	function startResizeRight(e: MouseEvent) {
+		e.preventDefault();
+		isResizingRight = true;
+		window.addEventListener('mousemove', handleMouseMove);
+		window.addEventListener('mouseup', stopResize);
+	}
+
+	function handleMouseMove(e: MouseEvent) {
+		if (isResizingLeft) {
+			const newW = Math.max(180, Math.min(500, e.clientX));
+			leftWidth = newW;
+		} else if (isResizingRight) {
+			const newW = Math.max(180, Math.min(500, window.innerWidth - e.clientX));
+			rightWidth = newW;
+		}
+	}
+
+	function stopResize() {
+		isResizingLeft = false;
+		isResizingRight = false;
+		window.removeEventListener('mousemove', handleMouseMove);
+		window.removeEventListener('mouseup', stopResize);
+	}
+
+	async function handleDeleteCase(id: string) {
+		if (user && user.username) {
+			await deleteCaseFromLocal(user.username, id);
+			if (isSupabaseConfigured()) {
+				await deleteCaseFromSupabase(user.username, id);
+			}
+		}
+
+		caseDataMap.delete(id);
+		cases = cases.filter((c) => c.id !== id);
+
+		if (activeCaseId === id) {
+			if (cases.length > 0) {
+				handleSelectCase(cases[0].id);
+			} else {
+				handleNewCase();
+			}
+		}
+
+		toastMessage = '🗑️ Chat eliminado con éxito';
+		toastDetails = 'El chat fue borrado permanentemente de tu perfil y de Supabase Cloud.';
+		toastType = 'info';
+		showToast = true;
+	}
 
 	// Persistencia en memoria: guardar datos de cada caso cargado
 	const caseDataMap = new Map<string, { meta: ChatMeta; messages: ChatMessage[]; days: DaySummary[] }>();
@@ -426,17 +486,28 @@
 	<div class="mobile-backdrop" on:click={() => (isMobileTimelineOpen = false)} role="button" tabindex="0"></div>
 {/if}
 
-<div class="app-shell" class:dark={darkMode} class:left-collapsed={isLeftCollapsed} class:right-collapsed={isRightCollapsed}>
-	<div class="sidebar-wrapper" class:mobile-open={isMobileSidebarOpen} class:collapsed={isLeftCollapsed}>
+<div
+	class="app-shell"
+	class:dark={darkMode}
+	class:left-collapsed={isLeftCollapsed}
+	class:right-collapsed={isRightCollapsed}
+	style="--left-w: {leftWidth}px; --right-w: {rightWidth}px;"
+>
+	<div class="sidebar-wrapper" class:mobile-open={isMobileSidebarOpen} class:collapsed={isLeftCollapsed} style="width: {leftWidth}px;">
 		<ProjectSidebar
 			{cases}
 			{activeCaseId}
 			onSelectCase={handleSelectCaseMobile}
 			onNewCase={() => { handleNewCase(); isMobileSidebarOpen = false; }}
 			onOpenAuth={() => { showAuthModal = true; isMobileSidebarOpen = false; }}
+			onDeleteCase={handleDeleteCase}
 			onToggleCollapse={() => (isLeftCollapsed = !isLeftCollapsed)}
 		/>
 	</div>
+
+	{#if !isLeftCollapsed}
+		<div class="panel-resizer left-resizer" on:mousedown={startResizeLeft} title="Arrastrar para ajustar el ancho del panel izquierdo"></div>
+	{/if}
 
 	{#if isLeftCollapsed}
 		<button class="floating-uncollapse left" on:click={() => (isLeftCollapsed = false)} title="Mostrar panel de chats">
@@ -466,7 +537,12 @@
 			onSearchChange={handleSearchChange}
 			participants={activeMeta?.participants ?? []}
 		/>
-		<div class="timeline-wrapper" class:mobile-open={isMobileTimelineOpen} class:collapsed={isRightCollapsed}>
+
+		{#if !isRightCollapsed}
+			<div class="panel-resizer right-resizer" on:mousedown={startResizeRight} title="Arrastrar para ajustar el ancho del panel derecho"></div>
+		{/if}
+
+		<div class="timeline-wrapper" class:mobile-open={isMobileTimelineOpen} class:collapsed={isRightCollapsed} style="width: {rightWidth}px;">
 			<TimelinePanel
 				days={activeDays}
 				{filter}
@@ -539,26 +615,38 @@
 <style>
 	.app-shell {
 		display: grid;
-		grid-template-columns: 264px 1fr 300px;
+		grid-template-columns: var(--left-w, 264px) 1fr var(--right-w, 300px);
 		grid-template-areas: 'left main right';
 		gap: var(--space-4);
 		height: 100vh;
 		padding: var(--space-4);
 		background: var(--void);
-		transition: grid-template-columns 0.3s ease;
 		position: relative;
 	}
 	.app-shell.left-collapsed {
-		grid-template-columns: 0px 1fr 300px;
+		grid-template-columns: 0px 1fr var(--right-w, 300px);
 	}
 	.app-shell.right-collapsed {
-		grid-template-columns: 264px 1fr 0px;
+		grid-template-columns: var(--left-w, 264px) 1fr 0px;
 	}
 	.app-shell.left-collapsed.right-collapsed {
 		grid-template-columns: 0px 1fr 0px;
 	}
 	.sidebar-wrapper.collapsed, .timeline-wrapper.collapsed {
 		display: none;
+	}
+
+	.panel-resizer {
+		width: 6px;
+		cursor: col-resize;
+		position: relative;
+		z-index: 50;
+		border-radius: 3px;
+		transition: background 0.15s ease;
+		background: transparent;
+	}
+	.panel-resizer:hover, .panel-resizer:active {
+		background: rgba(37, 211, 102, 0.4);
 	}
 
 	.floating-uncollapse {

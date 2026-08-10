@@ -216,3 +216,20 @@ export async function loadUserCasesFromCloud(
 
 	return result;
 }
+
+/** Elimina un caso guardado en IndexedDB */
+export async function deleteCaseFromLocal(username: string, chatId: string): Promise<boolean> {
+	if (typeof window === 'undefined' || !username || !chatId) return false;
+	const cleanUser = username.trim().toLowerCase();
+
+	try {
+		const db = await openDB();
+		const tx = db.transaction(CASE_STORE, 'readwrite');
+		const store = tx.objectStore(CASE_STORE);
+		store.delete(`${cleanUser}___${chatId}`);
+		return true;
+	} catch (e) {
+		console.error('Error eliminando caso de IndexedDB:', e);
+		return false;
+	}
+}

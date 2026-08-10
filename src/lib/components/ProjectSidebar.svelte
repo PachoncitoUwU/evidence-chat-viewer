@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { FolderOpen, Plus, MessageCircle, Search, User, LogIn, LogOut, ShieldCheck, Download, Upload } from 'lucide-svelte';
+	import { FolderOpen, Plus, MessageCircle, Search, LogIn, ShieldCheck, Trash2, AlertTriangle } from 'lucide-svelte';
 	import type { EvidenceCase } from '$types/chat.types';
 	import { authStore } from '$lib/stores/authStore';
 	import { APP_VERSION, BUILD_COMMIT, BUILD_DATE } from '$lib/version';
@@ -9,14 +9,37 @@
 	export let onSelectCase: (id: string) => void = () => {};
 	export let onNewCase: () => void = () => {};
 	export let onOpenAuth: () => void = () => {};
+	export let onDeleteCase: (id: string) => void = () => {};
 	export let onToggleCollapse: () => void = () => {};
 
 	let filterQuery = '';
+	let targetDeleteCase: EvidenceCase | null = null;
+	let confirmTypedName = '';
+	let isDeleting = false;
 
 	$: user = $authStore;
 	$: visibleCases = cases.filter((c) =>
 		c.name.toLowerCase().includes(filterQuery.trim().toLowerCase())
 	);
+
+	function openDeleteConfirm(c: EvidenceCase, e: MouseEvent) {
+		e.stopPropagation();
+		targetDeleteCase = c;
+		confirmTypedName = '';
+	}
+
+	function closeDeleteModal() {
+		targetDeleteCase = null;
+		confirmTypedName = '';
+		isDeleting = false;
+	}
+
+	async function confirmDelete() {
+		if (!targetDeleteCase) return;
+		isDeleting = true;
+		await onDeleteCase(targetDeleteCase.id);
+		closeDeleteModal();
+	}
 </script>
 
 <aside class="sidebar glass-panel">
@@ -65,10 +88,12 @@
 
 	<nav class="case-list">
 		{#each visibleCases as c (c.id)}
-			<button
-				class="case-item"
+			<div
+				class="case-item-row"
 				class:is-active={c.id === activeCaseId}
 				on:click={() => onSelectCase(c.id)}
+				role="button"
+				tabindex="0"
 			>
 				<FolderOpen size={15} strokeWidth={1.8} color={c.id === activeCaseId ? 'var(--brass)' : 'var(--ink-40)'} />
 				<div class="case-text">
@@ -77,7 +102,14 @@
 						<span class="case-meta">{c.description}</span>
 					{/if}
 				</div>
-			</button>
+				<button
+					class="delete-chat-btn"
+					on:click={(e) => openDeleteConfirm(c, e)}
+					title="Eliminar este chat definitivamente de la nube y del perfil"
+				>
+					<Trash2 size={14} color="#ef4444" />
+				</button>
+			</div>
 		{:else}
 			<div class="empty-state">
 				<p>Aún no hay chats cargados.</p>
@@ -93,6 +125,35 @@
 		</div>
 	</footer>
 </aside>
+
+{#if targetDeleteCase}
+	<div class="modal-backdrop" on:click|self={closeDeleteModal} role="dialog">
+		<div class="delete-modal">
+			<div class="modal-header-danger">
+				<AlertTriangle size={24} color="#ef4444" />
+				<h3>¿Eliminar chat de la nube?</h3>
+			</div>
+			<p class="modal-desc">
+				Estás a punto de eliminar definitivamente el chat <strong>"{targetDeleteCase.name}"</strong> de tu perfil y de la base de datos de Supabase.
+			</p>
+			<p class="modal-warning">
+				⚠️ <strong>Atención:</strong> Esta acción no se puede deshacer. Todos los mensajes e imágenes asociados serán borrados de la nube.
+			</p>
+			<div class="modal-actions">
+				<button class="btn-cancel" on:click={closeDeleteModal} disabled={isDeleting}>
+					Cancelar
+				</button>
+				<button class="btn-delete-confirm" on:click={confirmDelete} disabled={isDeleting}>
+					{#if isDeleting}
+						<span>Eliminando de Supabase...</span>
+					{:else}
+						<span>🗑️ Sí, eliminar chat</span>
+					{/if}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
 
 <style>
 	.sidebar {
@@ -223,22 +284,120 @@
 		overflow-y: auto;
 	}
 
-	.case-item {
+	.case-item-row {
 		display: flex;
-		align-items: flex-start;
+		align-items: center;
 		gap: 10px;
 		padding: 10px;
 		border-radius: var(--radius-sm);
 		text-align: left;
 		transition: background var(--dur-fast);
 		border: 1px solid transparent;
+		cursor: pointer;
+		position: relative;
 	}
-	.case-item:hover {
+	.case-item-row:hover {
 		background: var(--void);
 	}
-	.case-item.is-active {
+	.case-item-row.is-active {
 		background: var(--brass-dim);
 		border-color: rgba(79, 70, 229, 0.2);
+	}
+
+	.delete-chat-btn {
+		opacity: 0;
+		transition: opacity 0.15s ease;
+		background: transparent;
+		border: none;
+		cursor: pointer;
+		padding: 4px;
+		border-radius: 4px;
+		margin-left: auto;
+		flex-shrink: 0;
+	}
+	.case-item-row:hover .delete-chat-btn {
+		opacity: 1;
+	}
+	.delete-chat-btn:hover {
+		background: rgba(239, 68, 68, 0.15);
+	}
+
+	/* Modal de eliminación */
+	.modal-backdrop {
+		position: fixed;
+		top: 0; left: 0; right: 0; bottom: 0;
+		background: rgba(0,0,0,0.6);
+		backdrop-filter: blur(4px);
+		z-index: 1000;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 16px;
+	}
+	.delete-modal {
+		background: white;
+		border-radius: 12px;
+		width: 100%;
+		max-width: 440px;
+		padding: 24px;
+		box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3);
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+	}
+	.modal-header-danger {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		color: #ef4444;
+	}
+	.modal-header-danger h3 {
+		margin: 0;
+		font-size: 18px;
+		font-weight: 700;
+		color: #111827;
+	}
+	.modal-desc {
+		font-size: 14px;
+		color: #374151;
+		line-height: 1.5;
+		margin: 0;
+	}
+	.modal-warning {
+		font-size: 12.5px;
+		background: #fef2f2;
+		color: #991b1b;
+		border: 1px solid #fecaca;
+		padding: 10px 12px;
+		border-radius: 8px;
+		margin: 0;
+	}
+	.modal-actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: 10px;
+		margin-top: 8px;
+	}
+	.btn-cancel {
+		background: #f3f4f6;
+		color: #374151;
+		border: 1px solid #d1d5db;
+		padding: 8px 16px;
+		border-radius: 6px;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.btn-delete-confirm {
+		background: #ef4444;
+		color: white;
+		border: none;
+		padding: 8px 16px;
+		border-radius: 6px;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.btn-delete-confirm:hover {
+		background: #dc2626;
 	}
 
 	.case-text {
