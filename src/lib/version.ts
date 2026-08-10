@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v2.6.0 Cloud';
-export const BUILD_COMMIT = '7717554';
+export const APP_VERSION = 'v2.7.0 Cloud';
+export const BUILD_COMMIT = '3daed5b';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Galería multimedia corregida (muestra todos los adjuntos) y PDF hiperrealista WhatsApp';
+export const BUILD_NOTES = 'PDF hiperrealista: audio ▶ waveform, video thumbnail, llamadas con icono, documentos con color extension';

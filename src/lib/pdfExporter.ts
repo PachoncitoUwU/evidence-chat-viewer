@@ -269,7 +269,7 @@ async function drawMessage(
 	const textH = textLines.length * lineH;
 
 	// Llamadas
-	const callH = msg.callInfo ? 9.0 : 0;
+	const callH = msg.callInfo ? 15.0 : 0;
 
 	// Adjuntos
 	let attachmentH = 0;
@@ -297,11 +297,11 @@ async function drawMessage(
 				attachmentH = 8.0;
 			}
 		} else if (att.kind === 'video') {
-			attachmentH = 13.0;
+			attachmentH = 44.0;
 		} else if (att.kind === 'audio') {
-			attachmentH = 11.5;
+			attachmentH = 14.0;
 		} else if (att.kind === 'document') {
-			attachmentH = 11.5;
+			attachmentH = 14.0;
 		} else {
 			attachmentH = 7.0;
 		}
@@ -339,8 +339,12 @@ async function drawMessage(
 		} else {
 			calculatedW = imgDrawW + bubblePadX * 2;
 		}
+	} else if (msg.attachment?.kind === 'video') {
+		calculatedW = maxBubbleW; // Videos ocupan todo el ancho disponible
+	} else if (msg.attachment?.kind === 'audio') {
+		calculatedW = Math.max(calculatedW, 68); // Ancho mínimo para waveform visible
 	} else if (msg.attachment || msg.callInfo) {
-		calculatedW = Math.max(calculatedW, 46);
+		calculatedW = Math.max(calculatedW, 58);
 	}
 
 	// Reducción dinámica: mínimo 22mm para textos muy cortos ("2")
@@ -389,28 +393,40 @@ async function drawMessage(
 		drawY += senderH;
 	}
 
-	// ── Llamadas de WhatsApp ──
+	// ── Llamadas de WhatsApp (hiperrealista) ──
 	if (msg.callInfo) {
 		const call = msg.callInfo;
 		const isMissed = call.status === 'missed' || call.status === 'declined';
-		setFill(pdf, isMissed ? '#fef2f2' : (theme.name === 'light' ? '#eefbf0' : '#182229'));
-		roundedRect(pdf, bubbleX + bubblePadX, drawY, bubbleW - bubblePadX * 2, 8.0, 1.8, 'F');
 
-		const icX = bubbleX + bubblePadX + 3.5;
-		const icY = drawY + 4.0;
+		// Círculo grande del ícono (rojo=perdida, verde=completada)
+		const icR = 5.2;
+		const icX = bubbleX + bubblePadX + icR + 1.5;
+		const icY = drawY + 7.5;
 		setFill(pdf, isMissed ? '#dc2626' : '#00a884');
-		pdf.circle(icX, icY, 2.6, 'F');
+		pdf.circle(icX, icY, icR, 'F');
 
-		pdf.setFont('helvetica', 'bold');
-		pdf.setFontSize(8);
-		if (isMissed) setTextRgb(pdf, 220, 38, 38);
-		else setTextRgb(pdf, 0, 168, 132);
+		// Teléfono simplificado en blanco dentro del círculo
+		setFill(pdf, '#ffffff');
+		pdf.circle(icX - 0.5, icY + 0.5, 1.8, 'F');
+		pdf.rect(icX - 2.8, icY - 0.4, 1.2, 0.9, 'F');
+		pdf.rect(icX + 1.6, icY - 0.4, 1.2, 0.9, 'F');
 
+		// Título de la llamada
 		const title = isMissed
 			? (call.type === 'video' ? 'Videollamada perdida' : 'Llamada de voz perdida')
 			: (call.type === 'video' ? 'Videollamada' : 'Llamada de voz');
+		pdf.setFont('helvetica', 'bold');
+		pdf.setFontSize(9.5);
+		setTexHex(pdf, textColor);
+		drawSingleLineText(pdf, title, bubbleX + bubblePadX + icR * 2 + 4.5, drawY + 6.5, bubbleW - bubblePadX * 2 - icR * 2 - 6);
 
-		drawSingleLineText(pdf, title, bubbleX + bubblePadX + 8, drawY + 5.2, bubbleW - bubblePadX * 2 - 10);
+		// Subtítulo
+		pdf.setFont('helvetica', 'normal');
+		pdf.setFontSize(7.8);
+		setTexHex(pdf, theme.metaColor);
+		const callSubtitle = call.duration ? `Duraci\u00f3n: ${call.duration}` : 'Toca para volver a llamar.';
+		pdf.text(callSubtitle, bubbleX + bubblePadX + icR * 2 + 4.5, drawY + 12.0);
+
 		drawY += callH;
 	}
 
@@ -463,78 +479,121 @@ async function drawMessage(
 				drawY += boxH + 2.0;
 			}
 		} else if (att.kind === 'video') {
-			setFill(pdf, theme.name === 'light' ? '#e2ebd5' : '#0d1b22');
-			roundedRect(pdf, bubbleX + bubblePadX, drawY, bubbleW - bubblePadX * 2, 11, 1.8, 'F');
-			const cx = bubbleX + bubblePadX + 5.5;
-			const cy = drawY + 5.5;
-			setFill(pdf, '#00a884');
-			pdf.circle(cx, cy, 3.2, 'F');
-			setFill(pdf, '#ffffff');
-			pdf.triangle(cx - 0.9, cy - 1.6, cx - 0.9, cy + 1.6, cx + 1.8, cy, 'F');
-			pdf.setFontSize(8);
-			setTexHex(pdf, textColor);
-			drawSingleLineText(pdf, att.fileName || 'Video', bubbleX + bubblePadX + 11, drawY + 7.0, bubbleW - bubblePadX * 2 - 13);
-			drawY += attachmentH;
+			// ── VIDEO: Thumbnail oscuro realista tipo WhatsApp ──
+			const vidW = bubbleW - bubblePadX * 2;
+			const vidH = 42.0;
+			setFill(pdf, '#1c1c1e');
+			roundedRect(pdf, attX, drawY, vidW, vidH, 2.5, 'F');
 
-		// ── REPRODUCTOR DE NOTA DE VOZ (AUDIO) FLUIDO (Sin caja secundaria) ──
+			// Botón de reproducción grande y centrado
+			const vcx = attX + vidW / 2;
+			const vcy = drawY + vidH / 2;
+			setFill(pdf, '#444444');
+			pdf.circle(vcx, vcy, 9.0, 'F');
+			setFill(pdf, '#ffffff');
+			pdf.triangle(vcx - 3.0, vcy - 5.0, vcx - 3.0, vcy + 5.0, vcx + 5.5, vcy, 'F');
+
+			// Badge de duraci\u00f3n esquina inferior izquierda
+			const vidDur = att.durationSeconds
+				? `${Math.floor(att.durationSeconds / 60)}:${Math.floor(att.durationSeconds % 60).toString().padStart(2, '0')}`
+				: '';
+			if (vidDur) {
+				setFill(pdf, '#000000');
+				roundedRect(pdf, attX + 2, drawY + vidH - 9, vidDur.length * 2.5 + 10, 7, 1.5, 'F');
+				pdf.setFont('helvetica', 'bold');
+				pdf.setFontSize(7);
+				setTextRgb(pdf, 255, 255, 255);
+				pdf.text(vidDur, attX + 5, drawY + vidH - 4.5);
+			} else {
+				// Nombre del archivo si no hay duraci\u00f3n
+				pdf.setFont('helvetica', 'normal');
+				pdf.setFontSize(7.5);
+				setTextRgb(pdf, 180, 180, 180);
+				drawSingleLineText(pdf, att.fileName || 'Video', attX + 2.5, drawY + vidH - 4, vidW - 5);
+			}
+			drawY += vidH + 2.0;
+
+		// ── NOTA DE VOZ REALISTA (Exacamente como WhatsApp) ──
 		} else if (att.kind === 'audio') {
-			// Botón Play verde circular a la izquierda
-			const playX = bubbleX + bubblePadX + 4.5;
-			const playY = drawY + 5.5;
+			// Bot\u00f3n de reproducir (c\u00edrculo verde) a la izquierda
+			const playR = 5.2;
+			const playX = bubbleX + bubblePadX + playR + 1.5;
+			const playY = drawY + 7.0;
 			setFill(pdf, '#00a884');
-			pdf.circle(playX, playY, 4.0, 'F');
+			pdf.circle(playX, playY, playR, 'F');
 			setFill(pdf, '#ffffff');
-			pdf.triangle(playX - 1.2, playY - 2.0, playX - 1.2, playY + 2.0, playX + 2.2, playY, 'F');
+			pdf.triangle(playX - 1.8, playY - 2.8, playX - 1.8, playY + 2.8, playX + 3.0, playY, 'F');
 
-			// Barritas verticales de onda de sonido simples y limpias
-			const barHeights = [2.0, 4.2, 1.8, 5.0, 3.0, 5.5, 2.2, 4.5, 3.2, 1.8, 4.0, 2.8, 4.8, 2.0, 3.8, 2.8];
-			const barCount = barHeights.length;
-			const startBarX = bubbleX + bubblePadX + 11.5;
-			const barZone = bubbleW - bubblePadX * 2 - 24;
-			const barW = Math.max(0.6, barZone / barCount - 0.4);
+			// Waveform: 24 barras verticales de alturas variadas
+			const wfBars = [2.5, 4.8, 2.0, 6.2, 3.5, 7.0, 2.8, 5.5, 4.2, 2.0, 6.5, 3.2, 7.2, 2.5, 5.8, 3.8, 6.8, 2.2, 5.2, 3.5, 4.8, 2.8, 5.5, 2.0];
+			const wfCount = wfBars.length;
+			const wfStartX = bubbleX + bubblePadX + playR * 2 + 4.5;
+			const wfZone = bubbleW - bubblePadX * 2 - playR * 2 - 14;
+			const wfBarW = Math.max(0.8, wfZone / wfCount - 0.5);
+			const wfMidY = drawY + 7.0;
 
-			for (let i = 0; i < barCount; i++) {
-				const bh = barHeights[i];
-				const bx = startBarX + i * (barW + 0.4);
-				const by = drawY + 5.0 - bh / 2;
-				if (i < Math.floor(barCount * 0.45)) {
-					setFill(pdf, '#00a884');
-				} else {
-					setFill(pdf, theme.name === 'light' ? '#8696a0' : '#4a5d66');
-				}
-				pdf.rect(bx, by, barW, bh, 'F');
+			for (let i = 0; i < wfCount; i++) {
+				const bh = wfBars[i];
+				const bx = wfStartX + i * (wfBarW + 0.6);
+				const by = wfMidY - bh / 2;
+				const isPlayed = i < Math.floor(wfCount * 0.40);
+				setFill(pdf, isPlayed ? '#00a884' : (theme.name === 'light' ? '#b8c9d0' : '#4a5d66'));
+				roundedRect(pdf, bx, by, wfBarW, bh, 0.3, 'F');
 			}
 
-			// Duración del audio (0:06)
-			const durationStr = att.durationSeconds
+			// Duraci\u00f3n debajo de la waveform (esquina inferior izquierda)
+			const audDur = att.durationSeconds
 				? `${Math.floor(att.durationSeconds / 60)}:${Math.floor(att.durationSeconds % 60).toString().padStart(2, '0')}`
-				: '0:06';
-
+				: '0:00';
 			pdf.setFont('helvetica', 'normal');
 			pdf.setFontSize(7.5);
 			setTexHex(pdf, theme.metaColor);
-			pdf.text(durationStr, bubbleX + bubbleW - bubblePadX - 1, drawY + 4.5, { align: 'right' });
+			pdf.text(audDur, bubbleX + bubblePadX + 2.0, drawY + 13.2);
 
 			drawY += attachmentH;
+
+		// ── DOCUMENTO: Card tipo WhatsApp con \u00edcono de archivo coloreado ──
 		} else if (att.kind === 'document') {
+			const docW = bubbleW - bubblePadX * 2;
+			const docH = 14.0;
 			setFill(pdf, theme.name === 'light' ? '#f0f2f5' : '#182229');
-			roundedRect(pdf, bubbleX + bubblePadX, drawY, bubbleW - bubblePadX * 2, 9.5, 1.8, 'F');
-			// Icono documento
-			setFill(pdf, '#4f46e5');
-			roundedRect(pdf, bubbleX + bubblePadX + 2.0, drawY + 2.0, 4.0, 5.2, 0.5, 'F');
-			setFill(pdf, '#ffffff');
-			pdf.rect(bubbleX + bubblePadX + 2.8, drawY + 3.2, 2.2, 0.5, 'F');
-			pdf.rect(bubbleX + bubblePadX + 2.8, drawY + 4.3, 2.2, 0.5, 'F');
-			pdf.setFontSize(8);
+			roundedRect(pdf, attX, drawY, docW, docH, 2.2, 'F');
+
+			// \u00cdcono de archivo con color seg\u00fan extensi\u00f3n
+			const fileExt = (att.fileName || '').split('.').pop()?.toUpperCase() ?? 'DOC';
+			const fileColor = fileExt === 'PDF' ? '#dc2626' :
+				(fileExt === 'XLS' || fileExt === 'XLSX' || fileExt === 'CSV') ? '#16a34a' :
+				(fileExt === 'ZIP' || fileExt === 'RAR' || fileExt === '7Z') ? '#7c3aed' :
+				(fileExt === 'DOC' || fileExt === 'DOCX') ? '#2563eb' : '#4f46e5';
+			setFill(pdf, fileColor);
+			roundedRect(pdf, attX + 2.5, drawY + 2.5, 6.0, 8.0, 1.0, 'F');
+			// Esquina doblada simulada
+			setFill(pdf, theme.name === 'light' ? '#f0f2f5' : '#182229');
+			pdf.triangle(attX + 7.0, drawY + 2.5, attX + 8.5, drawY + 2.5, attX + 8.5, drawY + 4.5, 'F');
+			// Extensi\u00f3n dentro del \u00edcono (texto blanco)
+			pdf.setFont('helvetica', 'bold');
+			pdf.setFontSize(4.2);
+			setTextRgb(pdf, 255, 255, 255);
+			pdf.text(fileExt.slice(0, 3), attX + 3.0, drawY + 8.8);
+
+			// Nombre del archivo
+			pdf.setFont('helvetica', 'bold');
+			pdf.setFontSize(8.5);
 			setTexHex(pdf, textColor);
-			drawSingleLineText(
-				pdf,
-				att.fileName || 'Documento',
-				bubbleX + bubblePadX + 8,
-				drawY + 6.2,
-				bubbleW - bubblePadX * 2 - 10
-			);
-			drawY += attachmentH;
+			drawSingleLineText(pdf, att.fileName || 'Documento', attX + 11.0, drawY + 7.5, docW - 13);
+
+			// Tipo y tama\u00f1o
+			pdf.setFont('helvetica', 'normal');
+			pdf.setFontSize(7.5);
+			setTexHex(pdf, theme.metaColor);
+			const sizeLabel = att.sizeBytes
+				? (att.sizeBytes < 1024 * 1024
+					? `${(att.sizeBytes / 1024).toFixed(0)} KB`
+					: `${(att.sizeBytes / 1024 / 1024).toFixed(1)} MB`)
+				: '';
+			pdf.text(sizeLabel ? `${fileExt} \u2022 ${sizeLabel}` : fileExt, attX + 11.0, drawY + 12.0);
+
+			drawY += docH;
 		} else {
 			drawY += attachmentH;
 		}
@@ -853,9 +912,9 @@ export async function exportChatToPdf(
 				if (msg.attachment) {
 					const att = msg.attachment;
 					if (att.kind === 'image' || att.isSticker) attachmentH = 48;
-					else if (att.kind === 'video') attachmentH = 13;
-					else if (att.kind === 'audio') attachmentH = 11.5;
-					else if (att.kind === 'document') attachmentH = 11.5;
+					else if (att.kind === 'video') attachmentH = 46;
+					else if (att.kind === 'audio') attachmentH = 16;
+					else if (att.kind === 'document') attachmentH = 16;
 					else attachmentH = 7.0;
 				}
 
