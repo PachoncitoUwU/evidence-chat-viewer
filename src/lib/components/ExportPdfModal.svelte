@@ -41,6 +41,7 @@
 
 	// Estilo visual del PDF
 	let pdfTheme: 'dark' | 'light' | 'legal' = 'dark';
+	let pdfFontSize: number = 8.5;
 
 	$: minDate = messages.length > 0 ? messages[0].date : '';
 	$: maxDate = messages.length > 0 ? messages[messages.length - 1].date : '';
@@ -124,7 +125,8 @@
 			investigatorName: investigatorName.trim() || undefined,
 			courtInstitution: courtInstitution.trim() || undefined,
 			watermarkText: enableWatermark ? watermarkText.trim() : undefined,
-			pdfTheme
+			pdfTheme,
+			fontSize: pdfFontSize
 		};
 		onExport(opts);
 	}
@@ -345,6 +347,17 @@
 							<input id="watermarkText" type="text" bind:value={watermarkText} disabled={isExporting} />
 						</div>
 					{/if}
+
+					<div class="section-title" style="margin-top: 18px;">Tamaño de Fuente del PDF</div>
+					<div class="form-group">
+						<label for="pdfFontSizeSelect">Tamaño de letra para mensajes:</label>
+						<select id="pdfFontSizeSelect" bind:value={pdfFontSize} disabled={isExporting} style="width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color, #ccc); background: var(--bg-card, #fff); color: var(--text-color, #000);">
+							<option value={7}>7 pt (Compacto)</option>
+							<option value={8.5}>8.5 pt (Estándar)</option>
+							<option value={10}>10 pt (Grande)</option>
+							<option value={12}>12 pt (Muy Grande)</option>
+						</select>
+					</div>
 				{/if}
 
 				<!-- Resumen de mensajes a exportar -->

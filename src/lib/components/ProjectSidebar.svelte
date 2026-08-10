@@ -11,6 +11,7 @@
 	export let onOpenAuth: () => void = () => {};
 	export let onExportProfileBackup: () => void = () => {};
 	export let onImportProfileBackup: (file: File) => void = () => {};
+	export let onToggleCollapse: () => void = () => {};
 
 	let filterQuery = '';
 	let backupFileInput: HTMLInputElement;
@@ -40,6 +41,11 @@
 			</div>
 			<span class="brand-name">Chat Viewer</span>
 			<span class="version-pill" title="Compilación en vivo de Vercel ({BUILD_DATE})">{APP_VERSION}</span>
+		</div>
+		<div class="header-right-group" style="display: flex; align-items: center; gap: 6px;">
+			<button class="collapse-header-btn" on:click={onToggleCollapse} title="Ocultar panel izquierdo (Modo Enfoque)" style="background: transparent; border: none; color: var(--ink-40, #888); cursor: pointer; padding: 4px; border-radius: 4px; display: flex; align-items: center;">
+				◀
+			</button>
 		</div>
 		<p class="brand-subtitle">Visor de evidencias · <span class="commit-tag">Vercel: {BUILD_COMMIT}</span></p>
 	</header>

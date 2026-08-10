@@ -83,7 +83,7 @@
 	const WA_PATTERN_LIGHT = `url("data:image/svg+xml,%3Csvg width='300' height='300' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext y='60' font-size='42' opacity='0.04'%3E💬%3C/text%3E%3Ctext x='80' y='140' font-size='36' opacity='0.04'%3E❤️%3C/text%3E%3Ctext x='160' y='80' font-size='30' opacity='0.04'%3E😊%3C/text%3E%3Ctext x='220' y='200' font-size='40' opacity='0.04'%3E📱%3C/text%3E%3Ctext x='40' y='250' font-size='34' opacity='0.04'%3E✅%3C/text%3E%3C/svg%3E")`;
 	const WA_PATTERN_DARK = `url("data:image/svg+xml,%3Csvg width='300' height='300' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext y='60' font-size='42' opacity='0.03'%3E💬%3C/text%3E%3Ctext x='80' y='140' font-size='36' opacity='0.03'%3E❤️%3C/text%3E%3Ctext x='160' y='80' font-size='30' opacity='0.03'%3E😊%3C/text%3E%3Ctext x='220' y='200' font-size='40' opacity='0.03'%3E📱%3C/text%3E%3Ctext x='40' y='250' font-size='34' opacity='0.03'%3E✅%3C/text%3E%3C/svg%3E")`;
 
-	$: feedBgStyle = `background-color:${feedBg}; background-image:${darkMode ? WA_PATTERN_DARK : WA_PATTERN_LIGHT};`;
+	$: feedBgStyle = `background-color:${feedBg}; background-image:${darkMode ? WA_PATTERN_DARK : WA_PATTERN_LIGHT}; --feed-font-size:${cfg.fontSize || 15}px;`;
 </script>
 
 {#if showAppearance}
@@ -121,6 +121,13 @@
 		</div>
 
 		<div class="header-actions">
+			<!-- Font size controls -->
+			<div class="font-control-stepper" title="Ajustar tamaño de letra en pantalla">
+				<button class="step-btn" on:click={() => chatConfig.update({ fontSize: Math.max(11, (cfg.fontSize || 15) - 1) })} title="Reducir tamaño de letra">-</button>
+				<span class="step-val">{(cfg.fontSize || 15)}px</span>
+				<button class="step-btn" on:click={() => chatConfig.update({ fontSize: Math.min(24, (cfg.fontSize || 15) + 1) })} title="Aumentar tamaño de letra">+</button>
+			</div>
+
 			<!-- Search box -->
 			<div class="search-box">
 				<Search size={14} color={darkMode ? '#8696a0' : '#54656f'} />
@@ -452,5 +459,35 @@
 		background: rgba(255,255,255,0.08);
 		color: #8696a0;
 		border-color: rgba(255,255,255,0.12);
+	}
+
+	.font-control-stepper {
+		display: flex;
+		align-items: center;
+		background: rgba(0,0,0,0.06);
+		border-radius: 16px;
+		padding: 2px 6px;
+		gap: 2px;
+	}
+	:global([data-theme="dark"] .font-control-stepper) {
+		background: rgba(255,255,255,0.1);
+	}
+	.step-btn {
+		border: none;
+		background: transparent;
+		color: currentColor;
+		font-weight: bold;
+		cursor: pointer;
+		padding: 0 5px;
+		font-size: 13px;
+		border-radius: 4px;
+	}
+	.step-btn:hover {
+		background: rgba(0,0,0,0.1);
+	}
+	.step-val {
+		font-size: 11px;
+		font-family: monospace;
+		padding: 0 2px;
 	}
 </style>

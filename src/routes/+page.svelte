@@ -14,6 +14,8 @@
 	import { authStore } from '$lib/stores/authStore';
 	import { saveUserCasesToCloud, loadUserCasesFromCloud } from '$lib/cloudStorage';
 	import { hiddenMediaStore } from '$lib/stores/hiddenMediaStore';
+	import { isSupabaseConfigured } from '$lib/supabaseClient';
+	import { uploadCaseToSupabase, fetchUserSupabaseChats, loadSupabaseChatSession } from '$lib/services/syncService';
 	import type { EvidenceCase, ChatMeta, ChatMessage, DaySummary, EvidenceFilter } from '$types/chat.types';
 
 	let cases: EvidenceCase[] = [];
@@ -21,6 +23,10 @@
 	let activeMeta: ChatMeta | null = null;
 	let activeMessages: ChatMessage[] = [];
 	let activeDays: DaySummary[] = [];
+
+	// Estado de paneles laterales colapsables (Modo Enfoque)
+	let isLeftCollapsed = false;
+	let isRightCollapsed = false;
 
 	// Persistencia en memoria: guardar datos de cada caso cargado
 	const caseDataMap = new Map<string, { meta: ChatMeta; messages: ChatMessage[]; days: DaySummary[] }>();
@@ -66,6 +72,7 @@
 	}
 
 	async function loadUserSessionData(username: string, pin: string) {
+		// 1. Cargar almacenamiento local (IndexedDB)
 		const loaded = await loadUserCasesFromCloud(username, pin);
 		if (loaded.cases.length > 0) {
 			cases = loaded.cases;
@@ -73,6 +80,39 @@
 			if (!activeCaseId || !caseDataMap.has(activeCaseId)) {
 				const firstCase = loaded.cases[0];
 				selectCase(firstCase.id);
+			}
+		}
+
+		// 2. Cargar chats de Supabase Cloud (para multidispositivo, chats subidos desde PC #1 o PC #2)
+		if (isSupabaseConfigured()) {
+			try {
+				const cloudSummaries = await fetchUserSupabaseChats(username);
+				let cloudLoadedCount = 0;
+				for (const summary of cloudSummaries) {
+					if (!caseDataMap.has(summary.id)) {
+						const cloudData = await loadSupabaseChatSession(summary.id);
+						if (cloudData) {
+							cases = [cloudData.caseInfo, ...cases];
+							caseDataMap.set(summary.id, {
+								meta: cloudData.meta,
+								messages: cloudData.messages,
+								days: cloudData.days
+							});
+							cloudLoadedCount++;
+						}
+					}
+				}
+				if (cases.length > 0 && (!activeCaseId || !caseDataMap.has(activeCaseId))) {
+					selectCase(cases[0].id);
+				}
+				if (cloudLoadedCount > 0) {
+					toastMessage = '☁️ Chats de la nube sincronizados';
+					toastDetails = `Se cargaron ${cloudLoadedCount} chat(s) recuperados desde Supabase.`;
+					toastType = 'success';
+					showToast = true;
+				}
+			} catch (err) {
+				console.warn('Error sincronizando con Supabase:', err);
 			}
 		}
 	}
@@ -184,6 +224,31 @@
 			// Guardar en la nube local (IndexedDB) de forma asíncrona y segura
 			if (user && user.isLoggedIn) {
 				await saveUserCasesToCloud(user.username, user.pin, cases, caseDataMap);
+			}
+
+			// Sincronizar automáticamente en Supabase Cloud Database & Storage
+			if (isSupabaseConfigured() && user && user.isLoggedIn) {
+				uploadCaseToSupabase(
+					user.username,
+					newCase,
+					result.meta,
+					result.messages,
+					result.days,
+					result.mediaBlobs,
+					(stage, percent) => {
+						toastMessage = stage;
+						toastDetails = `Sincronización Supabase Cloud: ${percent}%`;
+						toastType = 'info';
+						showToast = true;
+					}
+				).then(() => {
+					toastMessage = '☁️ Chat respaldado en la nube';
+					toastDetails = 'Disponible automáticamente desde cualquier computador o celular.';
+					toastType = 'success';
+					showToast = true;
+				}).catch((e) => {
+					console.warn('Error en respaldo Supabase:', e);
+				});
 			}
 
 			filter = { year: null, month: null, day: null, searchQuery: '', onlyWithMedia: false };
@@ -337,8 +402,8 @@
 	<div class="mobile-backdrop" on:click={() => (isMobileTimelineOpen = false)} role="button" tabindex="0"></div>
 {/if}
 
-<div class="app-shell" class:dark={darkMode}>
-	<div class="sidebar-wrapper" class:mobile-open={isMobileSidebarOpen}>
+<div class="app-shell" class:dark={darkMode} class:left-collapsed={isLeftCollapsed} class:right-collapsed={isRightCollapsed}>
+	<div class="sidebar-wrapper" class:mobile-open={isMobileSidebarOpen} class:collapsed={isLeftCollapsed}>
 		<ProjectSidebar
 			{cases}
 			{activeCaseId}
@@ -347,8 +412,21 @@
 			onOpenAuth={() => { showAuthModal = true; isMobileSidebarOpen = false; }}
 			onExportProfileBackup={handleExportBackup}
 			onImportProfileBackup={handleImportBackup}
+			onToggleCollapse={() => (isLeftCollapsed = !isLeftCollapsed)}
 		/>
 	</div>
+
+	{#if isLeftCollapsed}
+		<button class="floating-uncollapse left" on:click={() => (isLeftCollapsed = false)} title="Mostrar panel de chats">
+			📁 Chats
+		</button>
+	{/if}
+
+	{#if isRightCollapsed && activeMeta}
+		<button class="floating-uncollapse right" on:click={() => (isRightCollapsed = false)} title="Mostrar cronología">
+			📅 Cronología
+		</button>
+	{/if}
 
 	{#if isParsing}
 		<div class="center-state">
@@ -366,12 +444,13 @@
 			onSearchChange={handleSearchChange}
 			participants={activeMeta?.participants ?? []}
 		/>
-		<div class="timeline-wrapper" class:mobile-open={isMobileTimelineOpen}>
+		<div class="timeline-wrapper" class:mobile-open={isMobileTimelineOpen} class:collapsed={isRightCollapsed}>
 			<TimelinePanel
 				days={activeDays}
 				{filter}
 				onFilterChange={handleFilterChange}
 				onExportPdf={() => { handleExportPdf(); isMobileTimelineOpen = false; }}
+				onToggleCollapse={() => (isRightCollapsed = !isRightCollapsed)}
 			/>
 		</div>
 
@@ -444,6 +523,47 @@
 		height: 100vh;
 		padding: var(--space-4);
 		background: var(--void);
+		transition: grid-template-columns 0.3s ease;
+		position: relative;
+	}
+	.app-shell.left-collapsed {
+		grid-template-columns: 0px 1fr 300px;
+	}
+	.app-shell.right-collapsed {
+		grid-template-columns: 264px 1fr 0px;
+	}
+	.app-shell.left-collapsed.right-collapsed {
+		grid-template-columns: 0px 1fr 0px;
+	}
+	.sidebar-wrapper.collapsed, .timeline-wrapper.collapsed {
+		display: none;
+	}
+
+	.floating-uncollapse {
+		position: fixed;
+		top: 16px;
+		z-index: 90;
+		background: rgba(0, 168, 132, 0.9);
+		color: white;
+		border: none;
+		padding: 6px 12px;
+		border-radius: 20px;
+		font-size: 12px;
+		font-weight: 600;
+		cursor: pointer;
+		box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+		backdrop-filter: blur(4px);
+		transition: all 0.2s ease;
+	}
+	.floating-uncollapse:hover {
+		transform: scale(1.05);
+		background: #00a884;
+	}
+	.floating-uncollapse.left {
+		left: 16px;
+	}
+	.floating-uncollapse.right {
+		right: 16px;
 	}
 	.app-shell.dark {
 		background: #0d1418;

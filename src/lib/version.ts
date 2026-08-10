@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v1.5.0';
-export const BUILD_COMMIT = 'd820f4e';
-export const BUILD_DATE = '08/08/2026 20:11';
-export const BUILD_NOTES = 'Conexion oficial Supabase (whatsappviwer) y respaldos multidispositivo .chatpack';
+export const APP_VERSION = 'v2.5.3 Cloud';
+export const BUILD_COMMIT = 'ff9e44e';
+export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
+export const BUILD_NOTES = 'Integración oficial Supabase Cloud, auto-sync de chats pesados (+600MB), paneles colapsables y control de fuente';

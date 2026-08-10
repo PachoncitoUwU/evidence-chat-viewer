@@ -114,6 +114,8 @@ export interface ParsedChat {
 	days: DaySummary[];
 	/** Líneas que no se pudieron interpretar (para mostrar advertencias, no bloquear el parseo). */
 	warnings: ParserWarning[];
+	/** Map de blobs multimedia extraídos del .zip (para subida en la nube). */
+	mediaBlobs?: Map<string, Blob>;
 }
 
 export interface ParserWarning {
@@ -159,5 +161,6 @@ export interface PdfExportOptions {
 	courtInstitution?: string;
 	watermarkText?: string;
 	pdfTheme?: 'dark' | 'light' | 'legal';
+	fontSize?: number;
 }
 

@@ -9,9 +9,29 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-export const SUPABASE_URL = 'https://yzvdxjfjonjeidmwncqt.supabase.co';
-// Clave anon pública de Supabase
-export const SUPABASE_ANON_KEY =
-	'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6dmR4amZqb25qZWlkbXduY3F0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEwODg4MDAsImV4cCI6MjA2NjY2NDgwMH0.placeholder';
+const getEnvVar = (key: string): string => {
+	if (typeof import.meta !== 'undefined' && import.meta.env) {
+		return import.meta.env[key] || import.meta.env[`VITE_${key}`] || import.meta.env[`PUBLIC_${key}`] || '';
+	}
+	return '';
+};
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+export const SUPABASE_URL = getEnvVar('PUBLIC_SUPABASE_URL') || getEnvVar('SUPABASE_URL') || 'https://yzvdxjfjonjeidmwncqt.supabase.co';
+export const SUPABASE_ANON_KEY = getEnvVar('PUBLIC_SUPABASE_ANON_KEY') || getEnvVar('SUPABASE_ANON_KEY') || 'sb_publishable_9dLBGtJ0HZ7uQXU9fEkB_g_P9YtZzCJ';
+
+export function isSupabaseConfigured(): boolean {
+	return (
+		SUPABASE_URL !== '' &&
+		SUPABASE_URL !== 'https://placeholder-project.supabase.co' &&
+		SUPABASE_ANON_KEY !== '' &&
+		SUPABASE_ANON_KEY !== 'placeholder-key'
+	);
+}
+
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+	auth: {
+		persistSession: true,
+		autoRefreshToken: true,
+		detectSessionInUrl: true
+	}
+});

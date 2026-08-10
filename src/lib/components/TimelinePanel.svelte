@@ -6,6 +6,7 @@
 	export let filter: EvidenceFilter;
 	export let onFilterChange: (f: Partial<EvidenceFilter>) => void = () => {};
 	export let onExportPdf: () => void = () => {};
+	export let onToggleCollapse: () => void = () => {};
 
 	const MONTHS = [
 		'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
@@ -55,6 +56,9 @@
 			<span class="year-label">{activeYear}</span>
 			<button on:click={() => selectYear(activeYear + 1)} aria-label="Año siguiente" disabled={!years.includes(activeYear + 1)}>
 				<ChevronRight size={14} />
+			</button>
+			<button class="collapse-header-btn" on:click={onToggleCollapse} title="Ocultar panel derecho (Modo Enfoque)" style="background: transparent; border: none; color: var(--ink-40, #888); cursor: pointer; padding: 4px; border-radius: 4px; display: flex; align-items: center; margin-left: 6px;">
+				▶
 			</button>
 		</div>
 	</header>

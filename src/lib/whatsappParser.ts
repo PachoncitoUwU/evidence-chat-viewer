@@ -396,7 +396,7 @@ async function parseTxt(
 		sourceFileName, sourceHash, parsedAt: new Date().toISOString()
 	};
 
-	return { meta, messages, days, warnings };
+	return { meta, messages, days, warnings, mediaBlobs: mediaFiles };
 }
 
 // ── Public API ─────────────────────────────────────────────────────

@@ -16,6 +16,7 @@ export interface ChatConfig {
   bubbleOutColor: string;   // color burbuja enviada
   bubbleInColor: string;    // color burbuja recibida
   emojiStyle: EmojiStyle;
+  fontSize: number;         // tamaño de fuente en px (11 a 24)
   // Apodos por nombre real → nombre a mostrar
   nameAliases: Record<string, string>;
 }
@@ -29,6 +30,7 @@ const DEFAULTS: ChatConfig = {
   bubbleOutColor: '#d9fdd3',
   bubbleInColor: '#ffffff',
   emojiStyle: 'native',
+  fontSize: 15,
   nameAliases: {}
 };
 
