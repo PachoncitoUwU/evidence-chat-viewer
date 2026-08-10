@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v2.5.6 Cloud';
-export const BUILD_COMMIT = '058973d';
+export const APP_VERSION = 'v2.5.7 Cloud';
+export const BUILD_COMMIT = 'ff1c9bb';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Panel derecho restaurado, dropzone centrado y barras laterales al 100% de alto';
+export const BUILD_NOTES = 'Dropzone centrado verticalmente con grid-template-rows, paneles al 100% de alto';
