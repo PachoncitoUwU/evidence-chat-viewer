@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v2.9.2 Cloud';
-export const BUILD_COMMIT = 'sync-cloud-2026';
+export const APP_VERSION = 'v2.9.3 Cloud';
+export const BUILD_COMMIT = 'fix-date-2027-2028';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Sincronización en tiempo real de mensajes ocultos con Supabase (multi-dispositivo) y corrección de detección de fechas y años de 2 dígitos.';
+export const BUILD_NOTES = 'Corrección definitiva del bug de fechas 2027/2028: se eliminó la heurística YMD errónea y la corrección de seguridad que generaba años incorrectos en fechas ambiguas.';

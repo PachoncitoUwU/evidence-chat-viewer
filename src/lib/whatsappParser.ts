@@ -130,11 +130,7 @@ function detectChatDateFormat(lines: string[]): 'MDY' | 'DMY' | 'YMD' {
 			continue;
 		}
 
-		// 2 dígitos en ambos (p1 y p3 < 100):
-		// Si p3 > 12 y p1 <= 30 y p2 <= 12 y p1 >= 15 -> p3 es día, p1 es año (YY/MM/DD)
-		if (p3 > 12 && p1 <= 30 && p2 <= 12 && p1 >= 15) {
-			ymdVotes += 3;
-		}
+		// 2 dígitos en todos: solo usamos las claves inequívocas (p1 > 12 = día DMY, p2 > 12 = día MDY)
 		// Si p1 > 12 y p2 <= 12 -> p1 es día, p3 es año (DD/MM/YY)
 		if (p1 > 12 && p2 <= 12) {
 			dmyVotes += 3;
@@ -172,13 +168,12 @@ function parseDate(
 		else if (detectedFormat === 'MDY') { mo = p1; d = p2; }
 		else { d = p1; mo = p2; }
 	} else {
-		// Ambos son de 2 dígitos (ej: 26/02/27 o 27/02/26 o 02/27/26)
-		if (detectedFormat === 'YMD' || (p3 > 12 && p1 <= 30 && p2 <= 12 && p1 >= 15)) {
-			// Formato YY/MM/DD -> p1 es año, p2 es mes, p3 es día
-			y = p1 < 100 ? (p1 < 50 ? p1 + 2000 : p1 + 1900) : p1;
-			mo = p2;
-			d = p3;
-		} else if (p2 > 12 && p1 <= 12) {
+		// Todos son de 2 dígitos (ej: 27/02/26 o 02/27/26)
+		// Prioridad:
+		// 1. Pistas inequívocas: p2 > 12 → MDY (p1=mes, p2=día, p3=año)
+		//                        p1 > 12 → DMY (p1=día, p2=mes, p3=año)
+		// 2. Si ambos ≤ 12, confiar en el formato detectado
+		if (p2 > 12 && p1 <= 12) {
 			// Formato MM/DD/YY -> p1 es mes, p2 es día, p3 es año
 			y = p3 < 100 ? (p3 < 50 ? p3 + 2000 : p3 + 1900) : p3;
 			mo = p1;
@@ -188,6 +183,11 @@ function parseDate(
 			y = p3 < 100 ? (p3 < 50 ? p3 + 2000 : p3 + 1900) : p3;
 			d = p1;
 			mo = p2;
+		} else if (detectedFormat === 'YMD') {
+			// Formato YY/MM/DD -> p1 es año, p2 es mes, p3 es día
+			y = p1 < 100 ? (p1 < 50 ? p1 + 2000 : p1 + 1900) : p1;
+			mo = p2;
+			d = p3;
 		} else if (detectedFormat === 'MDY') {
 			y = p3 < 100 ? (p3 < 50 ? p3 + 2000 : p3 + 1900) : p3;
 			mo = p1;
@@ -198,15 +198,6 @@ function parseDate(
 			d = p1;
 			mo = p2;
 		}
-	}
-
-	// Corrección de seguridad: si el año calculado resulta en el futuro (> 2026) y el día coincide con un año válido
-	const currentYear = new Date().getFullYear();
-	if (y > currentYear && d <= (currentYear - 2000) && d >= 15) {
-		const correctedYear = d + 2000;
-		const correctedDay = y - 2000;
-		y = correctedYear;
-		d = correctedDay;
 	}
 
 	mo = Math.min(12, Math.max(1, mo));
