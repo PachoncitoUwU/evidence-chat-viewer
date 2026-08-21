@@ -105,6 +105,10 @@ function normalizeAMPM(hour: number, minute: number, ampm: string | undefined): 
 }
 
 function detectChatDateFormat(lines: string[]): 'MDY' | 'DMY' | 'YMD' {
+	let ymdVotes = 0;
+	let dmyVotes = 0;
+	let mdyVotes = 0;
+
 	for (const rawLine of lines) {
 		if (!rawLine) continue;
 		const stripped = stripInvisible(rawLine);
@@ -115,11 +119,34 @@ function detectChatDateFormat(lines: string[]): 'MDY' | 'DMY' | 'YMD' {
 		const cleanDate = dateStr.replace(/[^\d/.-]/g, '');
 		const parts = cleanDate.split(/[/.-]/).map(Number);
 		if (parts.length !== 3 || parts.some(isNaN)) continue;
-		const [p1, p2] = parts;
+		const [p1, p2, p3] = parts;
+
+		// 4 dígitos en p1 -> YMD
 		if (p1 > 1000) return 'YMD';
-		if (p2 > 12 && p1 <= 12) return 'MDY';
-		if (p1 > 12 && p2 <= 12) return 'DMY';
+		// 4 dígitos en p3 -> DMY o MDY
+		if (p3 > 1000) {
+			if (p2 > 12 && p1 <= 12) mdyVotes += 5;
+			else if (p1 > 12 && p2 <= 12) dmyVotes += 5;
+			continue;
+		}
+
+		// 2 dígitos en ambos (p1 y p3 < 100):
+		// Si p3 > 12 y p1 <= 30 y p2 <= 12 y p1 >= 15 -> p3 es día, p1 es año (YY/MM/DD)
+		if (p3 > 12 && p1 <= 30 && p2 <= 12 && p1 >= 15) {
+			ymdVotes += 3;
+		}
+		// Si p1 > 12 y p2 <= 12 -> p1 es día, p3 es año (DD/MM/YY)
+		if (p1 > 12 && p2 <= 12) {
+			dmyVotes += 3;
+		}
+		// Si p2 > 12 y p1 <= 12 -> p2 es día, p1 es mes (MM/DD/YY)
+		if (p2 > 12 && p1 <= 12) {
+			mdyVotes += 3;
+		}
 	}
+
+	if (ymdVotes > dmyVotes && ymdVotes > mdyVotes) return 'YMD';
+	if (mdyVotes > dmyVotes) return 'MDY';
 	return 'DMY';
 }
 
@@ -145,11 +172,41 @@ function parseDate(
 		else if (detectedFormat === 'MDY') { mo = p1; d = p2; }
 		else { d = p1; mo = p2; }
 	} else {
-		y = p3 < 100 ? (p3 < 50 ? p3 + 2000 : p3 + 1900) : p3;
-		if (p2 > 12 && p1 <= 12) { mo = p1; d = p2; }
-		else if (p1 > 12 && p2 <= 12) { d = p1; mo = p2; }
-		else if (detectedFormat === 'MDY') { mo = p1; d = p2; }
-		else { d = p1; mo = p2; }
+		// Ambos son de 2 dígitos (ej: 26/02/27 o 27/02/26 o 02/27/26)
+		if (detectedFormat === 'YMD' || (p3 > 12 && p1 <= 30 && p2 <= 12 && p1 >= 15)) {
+			// Formato YY/MM/DD -> p1 es año, p2 es mes, p3 es día
+			y = p1 < 100 ? (p1 < 50 ? p1 + 2000 : p1 + 1900) : p1;
+			mo = p2;
+			d = p3;
+		} else if (p2 > 12 && p1 <= 12) {
+			// Formato MM/DD/YY -> p1 es mes, p2 es día, p3 es año
+			y = p3 < 100 ? (p3 < 50 ? p3 + 2000 : p3 + 1900) : p3;
+			mo = p1;
+			d = p2;
+		} else if (p1 > 12 && p2 <= 12) {
+			// Formato DD/MM/YY -> p1 es día, p2 es mes, p3 es año
+			y = p3 < 100 ? (p3 < 50 ? p3 + 2000 : p3 + 1900) : p3;
+			d = p1;
+			mo = p2;
+		} else if (detectedFormat === 'MDY') {
+			y = p3 < 100 ? (p3 < 50 ? p3 + 2000 : p3 + 1900) : p3;
+			mo = p1;
+			d = p2;
+		} else {
+			// Por defecto DMY
+			y = p3 < 100 ? (p3 < 50 ? p3 + 2000 : p3 + 1900) : p3;
+			d = p1;
+			mo = p2;
+		}
+	}
+
+	// Corrección de seguridad: si el año calculado resulta en el futuro (> 2026) y el día coincide con un año válido
+	const currentYear = new Date().getFullYear();
+	if (y > currentYear && d <= (currentYear - 2000) && d >= 15) {
+		const correctedYear = d + 2000;
+		const correctedDay = y - 2000;
+		y = correctedYear;
+		d = correctedDay;
 	}
 
 	mo = Math.min(12, Math.max(1, mo));

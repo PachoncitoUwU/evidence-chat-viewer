@@ -1,13 +1,15 @@
 /**
  * hiddenMediaStore.ts
  * ------------------------------------------------------------------
- * Store de elementos ocultos (mensajes de texto, fotos, videos, audios, stickers).
- * Vinculado al perfil del usuario activo para que todo lo oculto
- * quede guardado permanentemente en su cuenta.
+ * Store reactivo de elementos ocultos (mensajes de texto, fotos, videos, audios, stickers).
+ * Sincronizado automáticamente en tiempo real con Supabase (en la nube) y
+ * respaldado en LocalStorage para disponibilidad en cualquier dispositivo o navegador.
  * ------------------------------------------------------------------
  */
 
 import { writable } from 'svelte/store';
+import { supabase, isSupabaseConfigured } from '$lib/supabaseClient';
+import { syncUserHiddenIdsToSupabase, fetchUserHiddenIdsFromSupabase } from '$lib/services/syncService';
 
 const BASE_KEY = 'chatviewer-hidden-media';
 
@@ -37,10 +39,14 @@ function loadHiddenForUser(username?: string): Set<string> {
 
 function createHiddenMediaStore() {
 	let currentUsername: string = '';
+	let syncTimeout: any = null;
+	let realtimeChannel: any = null;
+
 	const initial = loadHiddenForUser();
 	const { subscribe, update, set } = writable<Set<string>>(initial);
 
-	function persist(setVal: Set<string>) {
+	// Persistir localmente y sincronizar en la nube con Supabase (debounced)
+	function persistAndSync(setVal: Set<string>) {
 		if (typeof window !== 'undefined') {
 			try {
 				const key = getStorageKey(currentUsername);
@@ -49,20 +55,106 @@ function createHiddenMediaStore() {
 				/* noop */
 			}
 		}
+
+		// Sincronizar con Supabase Cloud en segundo plano
+		if (currentUsername && isSupabaseConfigured()) {
+			if (syncTimeout) clearTimeout(syncTimeout);
+			syncTimeout = setTimeout(() => {
+				syncUserHiddenIdsToSupabase(currentUsername, Array.from(setVal));
+			}, 350);
+		}
+	}
+
+	function setupRealtimeListener(username: string) {
+		if (typeof window === 'undefined' || !isSupabaseConfigured() || !username) return;
+
+		// Limpiar canal anterior si existe
+		if (realtimeChannel) {
+			supabase.removeChannel(realtimeChannel);
+			realtimeChannel = null;
+		}
+
+		try {
+			const cleanUser = username.trim().toLowerCase();
+			realtimeChannel = supabase
+				.channel(`realtime_hidden_${cleanUser}`)
+				.on(
+					'postgres_changes',
+					{
+						event: '*',
+						schema: 'public',
+						table: 'user_settings',
+						filter: `user_id=eq.${cleanUser}`
+					},
+					(payload: any) => {
+						if (payload.new && Array.isArray(payload.new.hidden_ids)) {
+							const cloudIds = payload.new.hidden_ids as string[];
+							update((current) => {
+								const merged = new Set([...current, ...cloudIds]);
+								if (typeof window !== 'undefined') {
+									try {
+										const key = getStorageKey(currentUsername);
+										localStorage.setItem(key, JSON.stringify(Array.from(merged)));
+									} catch {
+										/* noop */
+									}
+								}
+								return merged;
+							});
+						}
+					}
+				)
+				.subscribe();
+		} catch (e) {
+			console.warn('No se pudo inicializar listener en tiempo real:', e);
+		}
 	}
 
 	return {
 		subscribe,
-		setUser(username: string) {
-			currentUsername = username || '';
-			const loaded = loadHiddenForUser(currentUsername);
-			set(loaded);
+		async setUser(username: string) {
+			currentUsername = username ? username.trim().toLowerCase() : '';
+			const loadedLocal = loadHiddenForUser(currentUsername);
+			set(loadedLocal);
+
+			if (currentUsername) {
+				setupRealtimeListener(currentUsername);
+
+				// Recuperar desde Supabase Cloud y combinar con los locales
+				try {
+					const cloudHiddenIds = await fetchUserHiddenIdsFromSupabase(currentUsername);
+					if (cloudHiddenIds && cloudHiddenIds.length > 0) {
+						update((current) => {
+							const merged = new Set([...current, ...cloudHiddenIds]);
+							if (typeof window !== 'undefined') {
+								try {
+									const key = getStorageKey(currentUsername);
+									localStorage.setItem(key, JSON.stringify(Array.from(merged)));
+								} catch {
+									/* noop */
+								}
+							}
+							return merged;
+						});
+					} else if (loadedLocal.size > 0) {
+						// Si el usuario tenía ocultos locales que no estaban en la nube, subirlos
+						syncUserHiddenIdsToSupabase(currentUsername, Array.from(loadedLocal));
+					}
+				} catch (err) {
+					console.warn('Error sincronizando elementos ocultos de la nube:', err);
+				}
+			} else {
+				if (realtimeChannel) {
+					supabase.removeChannel(realtimeChannel);
+					realtimeChannel = null;
+				}
+			}
 		},
 		hide(id: string) {
 			update((s) => {
 				const next = new Set(s);
 				next.add(id);
-				persist(next);
+				persistAndSync(next);
 				return next;
 			});
 		},
@@ -70,7 +162,7 @@ function createHiddenMediaStore() {
 			update((s) => {
 				const next = new Set(s);
 				next.delete(id);
-				persist(next);
+				persistAndSync(next);
 				return next;
 			});
 		},
@@ -82,13 +174,21 @@ function createHiddenMediaStore() {
 				} else {
 					next.add(id);
 				}
-				persist(next);
+				persistAndSync(next);
+				return next;
+			});
+		},
+		mergeIds(ids: string[]) {
+			if (!ids || ids.length === 0) return;
+			update((s) => {
+				const next = new Set([...s, ...ids]);
+				persistAndSync(next);
 				return next;
 			});
 		},
 		clear() {
 			const next = new Set<string>();
-			persist(next);
+			persistAndSync(next);
 			set(next);
 		},
 		isHidden(id: string, hiddenSet: Set<string>): boolean {

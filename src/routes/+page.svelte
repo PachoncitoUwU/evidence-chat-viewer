@@ -163,6 +163,9 @@
 								messages: cloudData.messages,
 								days: cloudData.days
 							});
+							if (cloudData.hiddenIds && cloudData.hiddenIds.length > 0) {
+								hiddenMediaStore.mergeIds(cloudData.hiddenIds);
+							}
 							cloudLoadedCount++;
 						}
 					}
@@ -190,7 +193,10 @@
 								c,
 								localData.meta,
 								localData.messages,
-								localData.days
+								localData.days,
+								undefined,
+								undefined,
+								Array.from($hiddenMediaStore)
 							).then(() => {
 								toastMessage = '☁️ Chat respaldado en tu perfil';
 								toastDetails = `El chat "${c.name}" ya está sincronizado en la nube para @${username}.`;
@@ -233,7 +239,8 @@
 					toastDetails = `Sincronizando: ${percent}%`;
 					toastType = 'info';
 					showToast = true;
-				}
+				},
+				Array.from($hiddenMediaStore)
 			);
 			toastMessage = '✅ Chat respaldado en la nube';
 			toastDetails = `"${targetCase.name}" ya se encuentra disponible online en todos tus dispositivos.`;

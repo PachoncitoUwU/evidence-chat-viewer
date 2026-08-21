@@ -59,7 +59,8 @@ export async function uploadCaseToSupabase(
 	messages: ChatMessage[],
 	days: DaySummary[],
 	mediaBlobs?: Map<string, Blob>,
-	onProgress?: (stage: string, percent: number) => void
+	onProgress?: (stage: string, percent: number) => void,
+	hiddenIds?: string[]
 ): Promise<string> {
 	if (!isSupabaseConfigured()) {
 		throw new Error('Supabase no está configurado correctamente.');
@@ -88,7 +89,8 @@ export async function uploadCaseToSupabase(
 				participants_json: meta.participants || [],
 				metadata_json: {
 					sourceHash: meta.sourceHash,
-					parsedAt: meta.parsedAt
+					parsedAt: meta.parsedAt,
+					hiddenIds: hiddenIds || []
 				},
 				updated_at: new Date().toISOString()
 			},
@@ -347,12 +349,140 @@ export async function loadSupabaseChatSession(
 		chats: [meta]
 	};
 
+	const hiddenIds: string[] = Array.isArray(chatRow.metadata_json?.hiddenIds)
+		? chatRow.metadata_json.hiddenIds
+		: [];
+
 	return {
 		caseInfo,
 		meta,
 		messages,
-		days: chatRow.timeline_json || []
+		days: chatRow.timeline_json || [],
+		hiddenIds
 	};
+}
+
+/**
+ * Sincroniza en segundo plano los IDs de mensajes ocultos de un usuario en Supabase.
+ * Guarda tanto en la tabla user_settings como en el metadata_json de los chats del usuario.
+ */
+export async function syncUserHiddenIdsToSupabase(
+	userKey: string,
+	hiddenIds: string[],
+	chatId?: string
+): Promise<boolean> {
+	if (!isSupabaseConfigured() || !userKey) return false;
+	const cleanUser = userKey.trim().toLowerCase();
+
+	try {
+		// 1. Guardar en user_settings (tabla global de configuración del usuario)
+		const { error: settingsError } = await supabase
+			.from('user_settings')
+			.upsert(
+				{
+					user_id: cleanUser,
+					hidden_ids: hiddenIds,
+					updated_at: new Date().toISOString()
+				},
+				{ onConflict: 'user_id' }
+			);
+
+		if (settingsError) {
+			console.warn('Nota: Sincronizando elementos ocultos con chats (fallback user_settings):', settingsError.message);
+		}
+
+		// 2. Si se especifica un chatId, actualizar el metadata_json de ese chat
+		if (chatId) {
+			const { data: chatData } = await supabase
+				.from('chats')
+				.select('metadata_json')
+				.eq('id', chatId)
+				.single();
+
+			const currentMeta = chatData?.metadata_json || {};
+			await supabase
+				.from('chats')
+				.update({
+					metadata_json: {
+						...currentMeta,
+						hiddenIds: hiddenIds
+					},
+					updated_at: new Date().toISOString()
+				})
+				.eq('id', chatId);
+		} else {
+			// Actualizar todos los chats del usuario para que cada chat conserve los IDs ocultos
+			const { data: userChats } = await supabase
+				.from('chats')
+				.select('id, metadata_json')
+				.eq('user_id', cleanUser);
+
+			if (userChats && userChats.length > 0) {
+				for (const c of userChats) {
+					const curMeta = c.metadata_json || {};
+					await supabase
+						.from('chats')
+						.update({
+							metadata_json: {
+								...curMeta,
+								hiddenIds: hiddenIds
+							},
+							updated_at: new Date().toISOString()
+						})
+						.eq('id', c.id);
+				}
+			}
+		}
+
+		return true;
+	} catch (e) {
+		console.warn('Error sincronizando elementos ocultos con Supabase:', e);
+		return false;
+	}
+}
+
+/**
+ * Recupera de la nube todos los IDs de mensajes que el usuario ocultó en cualquier dispositivo.
+ */
+export async function fetchUserHiddenIdsFromSupabase(
+	userKey: string,
+	chatId?: string
+): Promise<string[]> {
+	if (!isSupabaseConfigured() || !userKey) return [];
+	const cleanUser = userKey.trim().toLowerCase();
+	const hiddenSet = new Set<string>();
+
+	try {
+		// 1. Intentar leer de user_settings
+		const { data: settingsData, error: settingsError } = await supabase
+			.from('user_settings')
+			.select('hidden_ids')
+			.eq('user_id', cleanUser)
+			.maybeSingle();
+
+		if (!settingsError && settingsData?.hidden_ids && Array.isArray(settingsData.hidden_ids)) {
+			settingsData.hidden_ids.forEach((id: string) => hiddenSet.add(id));
+		}
+
+		// 2. Leer de todos los chats del usuario para garantizar recuperación total
+		const { data: chatsData } = await supabase
+			.from('chats')
+			.select('id, metadata_json')
+			.eq('user_id', cleanUser);
+
+		if (chatsData) {
+			for (const row of chatsData) {
+				if (row.metadata_json?.hiddenIds && Array.isArray(row.metadata_json.hiddenIds)) {
+					row.metadata_json.hiddenIds.forEach((id: string) => hiddenSet.add(id));
+				}
+			}
+		}
+
+		return Array.from(hiddenSet);
+	} catch (e) {
+		console.warn('Error obteniendo elementos ocultos de Supabase:', e);
+		return [];
+	}
 }
 
 /**
