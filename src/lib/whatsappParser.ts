@@ -200,6 +200,15 @@ function parseDate(
 		}
 	}
 
+	// Corrección de seguridad: si todos los componentes son de 2 dígitos y el año
+	// calculado supera el año actual, es un error de interpretación (ej: el día 27
+	// fue confundido con el año 2027). Corregimos al año actual como mínimo.
+	const currentYear = new Date().getFullYear();
+	const allShortForm = p1 < 100 && p2 < 100 && p3 < 100;
+	if (allShortForm && y > currentYear) {
+		y = currentYear;
+	}
+
 	mo = Math.min(12, Math.max(1, mo));
 	d = Math.min(31, Math.max(1, d));
 

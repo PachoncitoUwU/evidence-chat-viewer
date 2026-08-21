@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v2.9.3 Cloud';
-export const BUILD_COMMIT = 'fix-date-2027-2028';
+export const APP_VERSION = 'v2.9.4 Cloud';
+export const BUILD_COMMIT = 'fix-year-cap-definitive';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Corrección definitiva del bug de fechas 2027/2028: se eliminó la heurística YMD errónea y la corrección de seguridad que generaba años incorrectos en fechas ambiguas.';
+export const BUILD_NOTES = 'Corrección definitiva: cap de año al año actual cuando todos los componentes de fecha son de 2 dígitos. Ningún chat exportado en 2026 puede mostrar fechas futuras de 2027 o 2028.';

@@ -10,9 +10,31 @@
 import type { EvidenceCase, ChatMeta, ChatMessage, DaySummary } from '$types/chat.types';
 
 const DB_NAME = 'EvidenceChatViewerDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const USER_STORE = 'users';
 const CASE_STORE = 'cases';
+
+/**
+ * Sanitiza mensajes cargados desde IndexedDB que pueden tener fechas incorrectas
+ * del parser anterior (años 2027/2028 generados por bug). Corrige el campo `date`
+ * de cualquier mensaje cuyo año sea mayor al año actual.
+ */
+function sanitizeCachedMessages(messages: ChatMessage[]): ChatMessage[] {
+	const currentYear = new Date().getFullYear();
+	return messages.map((msg) => {
+		if (!msg.date) return msg;
+		const parts = msg.date.split('-');
+		if (parts.length !== 3) return msg;
+		const y = parseInt(parts[0], 10);
+		if (isNaN(y) || y <= currentYear) return msg;
+		// Año incorrecto (ej: 2027/2028): corregir al año actual
+		const corrected = `${currentYear}-${parts[1]}-${parts[2]}`;
+		const newTs = msg.timestampMs
+			? new Date(`${corrected}T${msg.time || '00:00'}`).getTime()
+			: msg.timestampMs;
+		return { ...msg, date: corrected, timestampMs: newTs };
+	});
+}
 
 export interface UserRecord {
 	username: string;
@@ -205,7 +227,7 @@ export async function loadUserCasesFromCloud(
 				result.cases.push(item.caseInfo);
 				result.caseDataMap.set(item.caseInfo.id, {
 					meta: item.meta,
-					messages: item.messages || [],
+					messages: sanitizeCachedMessages(item.messages || []),
 					days: item.days || []
 				});
 			}
