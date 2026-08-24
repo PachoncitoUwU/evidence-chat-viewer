@@ -240,10 +240,36 @@
 		downloadZip(items);
 	}
 
-	function downloadAllFilteredZip() {
-		const items = filtered.filter((f): f is { msg: ChatMessage; att: MediaAttachment } => !!f.att && !!f.att.previewUrl);
+	function selectOnlyPhotosAndVideos() {
+		const next = new Set<string>();
+		const photosAndVideos = filtered.filter(f => f.att && f.att.previewUrl && (f.att.kind === 'image' || f.att.kind === 'video') && !f.att.isSticker);
+		photosAndVideos.forEach(f => next.add(f.msg.id));
+		selectedIds = next;
+	}
+
+	function downloadOnlyPhotosAndVideosZip() {
+		const items = visibleMedia.filter((m): m is { msg: ChatMessage; att: MediaAttachment } => 
+			!!m.att && 
+			!!m.att.previewUrl && 
+			(m.att.kind === 'image' || m.att.kind === 'video') && 
+			!m.att.isSticker
+		);
 		if (items.length === 0) {
-			alert('No hay archivos multimedia descargables en esta vista.');
+			alert('No se encontraron fotos o videos con vista previa disponible para descargar.');
+			return;
+		}
+		downloadZip(items);
+	}
+
+	function downloadOnlyPhotosZip() {
+		const items = visibleMedia.filter((m): m is { msg: ChatMessage; att: MediaAttachment } => 
+			!!m.att && 
+			!!m.att.previewUrl && 
+			m.att.kind === 'image' && 
+			!m.att.isSticker
+		);
+		if (items.length === 0) {
+			alert('No se encontraron fotos para descargar.');
 			return;
 		}
 		downloadZip(items);
@@ -272,6 +298,7 @@
 
 	$: selectableInCurrentView = filtered.filter(f => f.att && f.att.previewUrl);
 	$: allInViewSelected = selectableInCurrentView.length > 0 && selectableInCurrentView.every(f => selectedIds.has(f.msg.id));
+	$: totalPhotosAndVideosCount = visibleMedia.filter(m => m.att?.previewUrl && (m.att.kind === 'image' || m.att.kind === 'video') && !m.att.isSticker).length;
 </script>
 
 {#if lightboxOpen}
@@ -289,7 +316,7 @@
 			<div class="header-title-block">
 				<h2>📎 Archivos multimedia</h2>
 				<span class="header-subtitle">
-					{visibleMedia.length} archivos en total · Fechas originales de WhatsApp
+					{visibleMedia.length} archivos · {totalPhotosAndVideosCount} fotos y videos con fecha de envío
 				</span>
 			</div>
 			<div class="header-actions">
@@ -303,19 +330,24 @@
 		<!-- Barra de Selección y Descarga ZIP -->
 		<div class="selection-action-bar">
 			<div class="selection-left">
-				<button class="select-all-btn" on:click={selectAllFiltered} title="Seleccionar o deseleccionar todos los visibles">
+				<button class="select-all-btn" on:click={selectAllFiltered} title="Seleccionar o deseleccionar todos los de esta vista">
 					{#if allInViewSelected}
 						<CheckSquare size={16} color="#00a884" />
-						<span>Deseleccionar todo ({selectableInCurrentView.length})</span>
+						<span>Deseleccionar todo</span>
 					{:else}
 						<Square size={16} color="#667781" />
-						<span>Seleccionar todo ({selectableInCurrentView.length})</span>
+						<span>Seleccionar vista ({selectableInCurrentView.length})</span>
 					{/if}
+				</button>
+
+				<button class="select-all-btn filter-btn" on:click={selectOnlyPhotosAndVideos} title="Seleccionar únicamente Fotos y Videos (excluyendo audios, stickers y docs)">
+					<Image size={15} color="#00a884" />
+					<span>Solo Fotos y Videos</span>
 				</button>
 
 				{#if selectedIds.size > 0}
 					<span class="selection-count-badge">
-						{selectedIds.size} seleccionado{selectedIds.size > 1 ? 's' : ''}
+						{selectedIds.size} marcado{selectedIds.size > 1 ? 's' : ''}
 					</span>
 					<button class="clear-btn" on:click={clearSelection}>Limpiar</button>
 				{/if}
@@ -327,29 +359,29 @@
 						class="action-btn zip-btn" 
 						on:click={downloadSelectedZip} 
 						disabled={isExportingZip}
-						title="Descargar los elementos seleccionados en un ZIP con nombre y fecha de envío"
+						title="Descargar los elementos seleccionados en un ZIP con nombre y fecha de WhatsApp"
 					>
 						{#if isExportingZip}
 							<Loader2 size={16} class="spin" />
-							<span>Descargando...</span>
+							<span>Empaquetando...</span>
 						{:else}
 							<Archive size={16} />
-							<span>Descargar ZIP ({selectedIds.size})</span>
+							<span>Descargar ZIP seleccionados ({selectedIds.size})</span>
 						{/if}
 					</button>
 				{:else}
 					<button 
-						class="action-btn secondary-btn" 
-						on:click={downloadAllFilteredZip} 
-						disabled={isExportingZip || selectableInCurrentView.length === 0}
-						title="Descargar todos los archivos de esta vista en un ZIP"
+						class="action-btn photo-video-btn" 
+						on:click={downloadOnlyPhotosAndVideosZip} 
+						disabled={isExportingZip || totalPhotosAndVideosCount === 0}
+						title="Descargar únicamente todas las fotos y videos del chat en un ZIP"
 					>
 						{#if isExportingZip}
 							<Loader2 size={16} class="spin" />
 							<span>Generando ZIP...</span>
 						{:else}
 							<Archive size={16} />
-							<span>Descargar todo en ZIP ({selectableInCurrentView.length})</span>
+							<span>Descargar Fotos y Videos ZIP ({totalPhotosAndVideosCount})</span>
 						{/if}
 					</button>
 				{/if}
@@ -801,6 +833,27 @@
 	}
 	.zip-btn:hover:not(:disabled) {
 		background: #008f6f;
+	}
+	.photo-video-btn {
+		background: #005c4b;
+		color: white;
+		box-shadow: 0 2px 8px rgba(0, 92, 75, 0.25);
+	}
+	.photo-video-btn:hover:not(:disabled) {
+		background: #004d3e;
+	}
+	.filter-btn {
+		background: rgba(0, 168, 132, 0.08);
+		border-color: rgba(0, 168, 132, 0.3);
+		color: #005c4b;
+	}
+	:global([data-theme="dark"]) .filter-btn {
+		background: rgba(37, 211, 102, 0.12);
+		border-color: rgba(37, 211, 102, 0.3);
+		color: #25d366;
+	}
+	.filter-btn:hover {
+		background: rgba(0, 168, 132, 0.15);
 	}
 	.secondary-btn {
 		background: #f0f2f5;

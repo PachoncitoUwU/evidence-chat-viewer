@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v2.9.5 Cloud';
-export const BUILD_COMMIT = 'feat-media-gallery-multiselect-zip';
+export const APP_VERSION = 'v2.9.6 Cloud';
+export const BUILD_COMMIT = 'feat-photos-videos-only-zip-export';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Descarga múltiple de multimedia en ZIP con nombres basados en la fecha y hora exacta de WhatsApp (WhatsApp_IMG_AAAA-MM-DD_HH-mm-ss) y metadatos de fecha en detalles.';
+export const BUILD_NOTES = 'Botón inteligente para seleccionar y descargar en ZIP exclusivamente Imágenes y Videos con fechas de envío de WhatsApp (excluye audios, documentos y stickers automáticamente).';
