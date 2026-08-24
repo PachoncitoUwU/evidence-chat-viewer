@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { Download, X, Image, Film, Mic, FileText, Grid, List, Smile, Search, Eye, EyeOff } from 'lucide-svelte';
+	import { Download, X, Image, Film, Mic, FileText, Grid, List, Smile, Search, Eye, EyeOff, CheckSquare, Square, Archive, Loader2 } from 'lucide-svelte';
+	import JSZip from 'jszip';
 	import Lightbox from './Lightbox.svelte';
 	import VideoModal from './VideoModal.svelte';
 	import { hiddenMediaStore } from '$lib/stores/hiddenMediaStore';
-	import type { ChatMessage } from '$types/chat.types';
+	import type { ChatMessage, MediaAttachment } from '$types/chat.types';
 
 	export let messages: ChatMessage[] = [];
 	export let onClose: () => void = () => {};
@@ -19,6 +20,11 @@
 	let videoSrc = '';
 	let videoName = '';
 	let videoOpen = false;
+
+	// Selección múltiple
+	let selectedIds = new Set<string>();
+	let isExportingZip = false;
+	let exportProgress = { current: 0, total: 0, statusText: '' };
 
 	// Recopilar todos los adjuntos con su contexto de mensaje
 	$: allMedia = messages
@@ -74,6 +80,66 @@
 		return visibleMedia.filter(i => i.att?.kind === kind).length;
 	}
 
+	function toggleSelection(id: string) {
+		const next = new Set(selectedIds);
+		if (next.has(id)) {
+			next.delete(id);
+		} else {
+			next.add(id);
+		}
+		selectedIds = next;
+	}
+
+	function selectAllFiltered() {
+		const next = new Set(selectedIds);
+		const selectable = filtered.filter(f => f.att && f.att.previewUrl);
+		const allSelected = selectable.length > 0 && selectable.every(f => next.has(f.msg.id));
+		
+		if (allSelected) {
+			selectable.forEach(f => next.delete(f.msg.id));
+		} else {
+			selectable.forEach(f => next.add(f.msg.id));
+		}
+		selectedIds = next;
+	}
+
+	function clearSelection() {
+		selectedIds = new Set();
+	}
+
+	/**
+	 * Genera un nombre estandarizado de WhatsApp con la fecha y hora en que fue enviado en el chat.
+	 * Ejemplo: WhatsApp_IMG_2024-03-15_14-30-22.jpg
+	 */
+	function generateWhatsAppFileName(msg: ChatMessage, att: MediaAttachment, indexSuffix?: number): string {
+		let prefix = 'WhatsApp_FILE_';
+		if (att.isSticker) prefix = 'WhatsApp_STK_';
+		else if (att.kind === 'image') prefix = 'WhatsApp_IMG_';
+		else if (att.kind === 'video') prefix = 'WhatsApp_VID_';
+		else if (att.kind === 'audio') prefix = 'WhatsApp_AUD_';
+		else if (att.kind === 'document') prefix = 'WhatsApp_DOC_';
+
+		// Formatear fecha limpia YYYY-MM-DD
+		const datePart = (msg.date || '0000-00-00').replace(/[^0-9]/g, '-').slice(0, 10);
+		// Formatear hora limpia HH-mm-ss
+		const timePart = (msg.time || '00-00-00').replace(/[^0-9]/g, '-').slice(0, 8);
+
+		// Obtener extensión original
+		let ext = '';
+		const dotIdx = att.fileName.lastIndexOf('.');
+		if (dotIdx !== -1) {
+			ext = att.fileName.slice(dotIdx);
+		} else {
+			if (att.kind === 'image') ext = '.jpg';
+			else if (att.kind === 'video') ext = '.mp4';
+			else if (att.kind === 'audio') ext = '.opus';
+			else if (att.isSticker) ext = '.webp';
+		}
+
+		const suffix = typeof indexSuffix === 'number' && indexSuffix > 0 ? `_${indexSuffix}` : '';
+		return `${prefix}${datePart}_${timePart}${suffix}${ext}`;
+	}
+
 	function downloadFile(url?: string | null, name?: string | null) {
 		if (!url || !name) return;
 		const a = document.createElement('a');
@@ -82,16 +148,105 @@
 		a.click();
 	}
 
-	function downloadAll() {
-		filtered.forEach((item, index) => {
-			if (item.att && item.att.previewUrl) {
-				const url = item.att.previewUrl;
-				const name = item.att.fileName;
-				setTimeout(() => {
-					downloadFile(url, name);
-				}, index * 100);
+	function downloadSingleWithWhatsAppName(item: { msg: ChatMessage; att: MediaAttachment | null }) {
+		if (!item.att?.previewUrl) return;
+		const customName = generateWhatsAppFileName(item.msg, item.att);
+		downloadFile(item.att.previewUrl, customName);
+	}
+
+	async function downloadZip(itemsToExport: Array<{ msg: ChatMessage; att: MediaAttachment }>) {
+		if (itemsToExport.length === 0 || isExportingZip) return;
+		isExportingZip = true;
+		exportProgress = { current: 0, total: itemsToExport.length, statusText: 'Preparando descarga...' };
+
+		try {
+			const zip = new JSZip();
+			const usedNames = new Map<string, number>();
+
+			for (let i = 0; i < itemsToExport.length; i++) {
+				const item = itemsToExport[i];
+				exportProgress = {
+					current: i + 1,
+					total: itemsToExport.length,
+					statusText: `Empaquetando (${i + 1}/${itemsToExport.length}): ${item.att.fileName}`
+				};
+
+				if (!item.att.previewUrl) continue;
+
+				// Obtener Blob o ArrayBuffer del archivo
+				try {
+					const response = await fetch(item.att.previewUrl);
+					const blob = await response.blob();
+
+					// Generar nombre con fecha de envío WhatsApp
+					let baseName = generateWhatsAppFileName(item.msg, item.att);
+					if (usedNames.has(baseName)) {
+						const count = usedNames.get(baseName)! + 1;
+						usedNames.set(baseName, count);
+						baseName = generateWhatsAppFileName(item.msg, item.att, count);
+					} else {
+						usedNames.set(baseName, 0);
+					}
+
+					// Fecha real del mensaje para los detalles del archivo en Windows
+					const fileDate = item.msg.timestampMs ? new Date(item.msg.timestampMs) : new Date();
+
+					zip.file(baseName, blob, {
+						date: fileDate,
+						comment: `Enviado por ${item.msg.senderName} el ${item.msg.date} a las ${item.msg.time}`
+					});
+				} catch (err) {
+					console.error('Error al agregar archivo al zip:', item.att.fileName, err);
+				}
 			}
-		});
+
+			exportProgress.statusText = 'Generando archivo ZIP comprimido...';
+			const zipBlob = await zip.generateAsync({
+				type: 'blob',
+				compression: 'DEFLATE',
+				compressionOptions: { level: 6 }
+			});
+
+			const dateStr = new Date().toISOString().slice(0, 10);
+			const zipName = `WhatsApp_Multimedia_${dateStr}.zip`;
+
+			const downloadUrl = URL.createObjectURL(zipBlob);
+			const a = document.createElement('a');
+			a.href = downloadUrl;
+			a.download = zipName;
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			URL.revokeObjectURL(downloadUrl);
+
+			exportProgress.statusText = '¡Descarga completada!';
+		} catch (error) {
+			console.error('Error al generar zip:', error);
+			alert('Ocurrió un error al generar el archivo ZIP.');
+		} finally {
+			setTimeout(() => {
+				isExportingZip = false;
+				exportProgress = { current: 0, total: 0, statusText: '' };
+			}, 1200);
+		}
+	}
+
+	function downloadSelectedZip() {
+		const items = allMedia.filter(m => selectedIds.has(m.msg.id) && m.att.previewUrl);
+		if (items.length === 0) {
+			alert('No has seleccionado ningún archivo con vista previa disponible.');
+			return;
+		}
+		downloadZip(items);
+	}
+
+	function downloadAllFilteredZip() {
+		const items = filtered.filter((f): f is { msg: ChatMessage; att: MediaAttachment } => !!f.att && !!f.att.previewUrl);
+		if (items.length === 0) {
+			alert('No hay archivos multimedia descargables en esta vista.');
+			return;
+		}
+		downloadZip(items);
 	}
 
 	function openLightbox(src?: string | null, name?: string | null) {
@@ -114,6 +269,9 @@
 		if (bytes < 1024*1024) return `${(bytes/1024).toFixed(1)} KB`;
 		return `${(bytes/1024/1024).toFixed(1)} MB`;
 	}
+
+	$: selectableInCurrentView = filtered.filter(f => f.att && f.att.previewUrl);
+	$: allInViewSelected = selectableInCurrentView.length > 0 && selectableInCurrentView.every(f => selectedIds.has(f.msg.id));
 </script>
 
 {#if lightboxOpen}
@@ -128,17 +286,93 @@
 
 		<!-- Header -->
 		<header class="gallery-header">
-			<h2>📎 Archivos multimedia</h2>
+			<div class="header-title-block">
+				<h2>📎 Archivos multimedia</h2>
+				<span class="header-subtitle">
+					{visibleMedia.length} archivos en total · Fechas originales de WhatsApp
+				</span>
+			</div>
 			<div class="header-actions">
-				<button class="action-btn" on:click={downloadAll} title="Descargar todos los archivos de esta vista">
-					<Download size={16} /> Descargar todo ({filtered.length})
-				</button>
-				<button class="icon-btn" on:click={() => (viewMode = viewMode === 'grid' ? 'list' : 'grid')} title="Cambiar vista">
+				<button class="icon-btn" on:click={() => (viewMode = viewMode === 'grid' ? 'list' : 'grid')} title="Cambiar vista (Cuadrícula / Lista)">
 					{#if viewMode === 'grid'}<List size={18} />{:else}<Grid size={18} />{/if}
 				</button>
-				<button class="icon-btn close" on:click={onClose}><X size={20} /></button>
+				<button class="icon-btn close" on:click={onClose} title="Cerrar galería"><X size={20} /></button>
 			</div>
 		</header>
+
+		<!-- Barra de Selección y Descarga ZIP -->
+		<div class="selection-action-bar">
+			<div class="selection-left">
+				<button class="select-all-btn" on:click={selectAllFiltered} title="Seleccionar o deseleccionar todos los visibles">
+					{#if allInViewSelected}
+						<CheckSquare size={16} color="#00a884" />
+						<span>Deseleccionar todo ({selectableInCurrentView.length})</span>
+					{:else}
+						<Square size={16} color="#667781" />
+						<span>Seleccionar todo ({selectableInCurrentView.length})</span>
+					{/if}
+				</button>
+
+				{#if selectedIds.size > 0}
+					<span class="selection-count-badge">
+						{selectedIds.size} seleccionado{selectedIds.size > 1 ? 's' : ''}
+					</span>
+					<button class="clear-btn" on:click={clearSelection}>Limpiar</button>
+				{/if}
+			</div>
+
+			<div class="selection-right">
+				{#if selectedIds.size > 0}
+					<button 
+						class="action-btn zip-btn" 
+						on:click={downloadSelectedZip} 
+						disabled={isExportingZip}
+						title="Descargar los elementos seleccionados en un ZIP con nombre y fecha de envío"
+					>
+						{#if isExportingZip}
+							<Loader2 size={16} class="spin" />
+							<span>Descargando...</span>
+						{:else}
+							<Archive size={16} />
+							<span>Descargar ZIP ({selectedIds.size})</span>
+						{/if}
+					</button>
+				{:else}
+					<button 
+						class="action-btn secondary-btn" 
+						on:click={downloadAllFilteredZip} 
+						disabled={isExportingZip || selectableInCurrentView.length === 0}
+						title="Descargar todos los archivos de esta vista en un ZIP"
+					>
+						{#if isExportingZip}
+							<Loader2 size={16} class="spin" />
+							<span>Generando ZIP...</span>
+						{:else}
+							<Archive size={16} />
+							<span>Descargar todo en ZIP ({selectableInCurrentView.length})</span>
+						{/if}
+					</button>
+				{/if}
+			</div>
+		</div>
+
+		<!-- Progreso de exportación ZIP -->
+		{#if isExportingZip}
+			<div class="export-progress-bar">
+				<div class="progress-info">
+					<Loader2 size={14} class="spin" />
+					<span>{exportProgress.statusText}</span>
+				</div>
+				{#if exportProgress.total > 0}
+					<div class="progress-track">
+						<div 
+							class="progress-fill" 
+							style="width: {(exportProgress.current / exportProgress.total) * 100}%"
+						></div>
+					</div>
+				{/if}
+			</div>
+		{/if}
 
 		<!-- Buscador y Pestañas -->
 		<div class="filter-bar">
@@ -146,7 +380,7 @@
 				<Search size={14} color="#667781" />
 				<input
 					type="text"
-					placeholder="Buscar en archivos…"
+					placeholder="Buscar por nombre, remitente, texto o fecha (AAAA-MM-DD)…"
 					bind:value={searchQuery}
 				/>
 				{#if searchQuery}
@@ -180,7 +414,8 @@
 				</div>
 			{:else if viewMode === 'grid'}
 				{#each filtered as item (item.msg.id)}
-					<div class="grid-item">
+					{@const isSelected = selectedIds.has(item.msg.id)}
+					<div class="grid-item" class:is-selected={isSelected}>
 						{#if item.att?.kind === 'image' || item.att?.isSticker}
 							<!-- svelte-ignore a11y-click-events-have-key-events -->
 							<!-- svelte-ignore a11y-no-static-element-interactions -->
@@ -193,8 +428,28 @@
 										<span class="no-thumb-name">{item.att.fileName}</span>
 									</div>
 								{/if}
+
+								<!-- Checkbox selector en la esquina superior -->
+								{#if item.att.previewUrl}
+									<button 
+										class="item-checkbox" 
+										class:checked={isSelected}
+										on:click|stopPropagation={() => toggleSelection(item.msg.id)} 
+										title={isSelected ? 'Deseleccionar' : 'Seleccionar'}
+									>
+										{#if isSelected}
+											<CheckSquare size={18} color="#00a884" />
+										{:else}
+											<Square size={18} color="rgba(255,255,255,0.9)" />
+										{/if}
+									</button>
+								{/if}
+
 								<div class="thumb-overlay">
-									<span class="thumb-date">{formatDate(item.msg.date)}</span>
+									<div class="thumb-meta-wrap">
+										<span class="thumb-date">{formatDate(item.msg.date)} {item.msg.time?.slice(0,5) || ''}</span>
+										<span class="thumb-sender">{item.msg.senderName}</span>
+									</div>
 									<div class="thumb-actions">
 										{#if $hiddenMediaStore.has(item.msg.id)}
 											<button class="thumb-eye restored" on:click|stopPropagation={() => hiddenMediaStore.unhide(item.msg.id)} title="Mostrar en el chat y PDF (Restaurar)">
@@ -206,7 +461,7 @@
 											</button>
 										{/if}
 										{#if item.att.previewUrl}
-											<button class="thumb-dl" on:click|stopPropagation={() => downloadFile(item.att?.previewUrl!, item.att?.fileName)} title="Descargar">
+											<button class="thumb-dl" on:click|stopPropagation={() => downloadSingleWithWhatsAppName(item)} title="Descargar con fecha de WhatsApp">
 												<Download size={14} color="white" />
 											</button>
 										{/if}
@@ -219,9 +474,30 @@
 							<div class="thumb-wrap video-thumb" on:click={() => openVideo(item.att?.previewUrl!, item.att?.fileName)}>
 								<div class="video-placeholder">
 									<Film size={28} color="rgba(255,255,255,0.8)" />
+									<span class="file-badge">Video</span>
 								</div>
+
+								<!-- Checkbox selector en la esquina superior -->
+								{#if item.att?.previewUrl}
+									<button 
+										class="item-checkbox" 
+										class:checked={isSelected}
+										on:click|stopPropagation={() => toggleSelection(item.msg.id)} 
+										title={isSelected ? 'Deseleccionar' : 'Seleccionar'}
+									>
+										{#if isSelected}
+											<CheckSquare size={18} color="#00a884" />
+										{:else}
+											<Square size={18} color="rgba(255,255,255,0.9)" />
+										{/if}
+									</button>
+								{/if}
+
 								<div class="thumb-overlay">
-									<span class="thumb-date">{formatDate(item.msg.date)}</span>
+									<div class="thumb-meta-wrap">
+										<span class="thumb-date">{formatDate(item.msg.date)} {item.msg.time?.slice(0,5) || ''}</span>
+										<span class="thumb-sender">{item.msg.senderName}</span>
+									</div>
 									<div class="thumb-actions">
 										{#if $hiddenMediaStore.has(item.msg.id)}
 											<button class="thumb-eye restored" on:click|stopPropagation={() => hiddenMediaStore.unhide(item.msg.id)} title="Mostrar en el chat (Restaurar)">
@@ -233,7 +509,7 @@
 											</button>
 										{/if}
 										{#if item.att?.previewUrl}
-											<button class="thumb-dl" on:click|stopPropagation={() => downloadFile(item.att?.previewUrl!, item.att?.fileName)} title="Descargar">
+											<button class="thumb-dl" on:click|stopPropagation={() => downloadSingleWithWhatsAppName(item)} title="Descargar con fecha de WhatsApp">
 												<Download size={14} color="white" />
 											</button>
 										{/if}
@@ -241,11 +517,18 @@
 								</div>
 							</div>
 						{:else if item.att?.kind === 'audio'}
-							<div class="audio-grid-item">
+							<div class="audio-grid-item" class:is-selected={isSelected}>
+								<button class="item-checkbox-inline" on:click={() => toggleSelection(item.msg.id)}>
+									{#if isSelected}
+										<CheckSquare size={18} color="#00a884" />
+									{:else}
+										<Square size={18} color="#667781" />
+									{/if}
+								</button>
 								<Mic size={22} color="#00a884" />
 								<div class="audio-info">
 									<span class="file-name">{item.att.fileName}</span>
-									<span class="file-meta">{formatDate(item.msg.date)} · Audio</span>
+									<span class="file-meta">{item.msg.senderName} · {formatDate(item.msg.date)} {item.msg.time} · Audio</span>
 								</div>
 								<div class="item-action-btns">
 									{#if $hiddenMediaStore.has(item.msg.id)}
@@ -258,18 +541,25 @@
 										</button>
 									{/if}
 									{#if item.att.previewUrl}
-										<button class="dl-circle" on:click={() => downloadFile(item.att?.previewUrl!, item.att?.fileName)} title="Descargar audio">
+										<button class="dl-circle" on:click={() => downloadSingleWithWhatsAppName(item)} title="Descargar audio con fecha WhatsApp">
 											<Download size={14} />
 										</button>
 									{/if}
 								</div>
 							</div>
 						{:else if item.att?.kind === 'document'}
-							<div class="doc-grid-item">
+							<div class="doc-grid-item" class:is-selected={isSelected}>
+								<button class="item-checkbox-inline" on:click={() => toggleSelection(item.msg.id)}>
+									{#if isSelected}
+										<CheckSquare size={18} color="#00a884" />
+									{:else}
+										<Square size={18} color="#667781" />
+									{/if}
+								</button>
 								<FileText size={22} color="#4f46e5" />
 								<div class="audio-info">
 									<span class="file-name">{item.att.fileName}</span>
-									<span class="file-meta">{formatDate(item.msg.date)} · {formatSize(item.att.sizeBytes)}</span>
+									<span class="file-meta">{item.msg.senderName} · {formatDate(item.msg.date)} {item.msg.time} · {formatSize(item.att.sizeBytes)}</span>
 								</div>
 								<div class="item-action-btns">
 									{#if $hiddenMediaStore.has(item.msg.id)}
@@ -282,7 +572,7 @@
 										</button>
 									{/if}
 									{#if item.att.previewUrl}
-										<button class="dl-circle" on:click={() => downloadFile(item.att?.previewUrl!, item.att?.fileName)} title="Descargar documento">
+										<button class="dl-circle" on:click={() => downloadSingleWithWhatsAppName(item)} title="Descargar documento con fecha WhatsApp">
 											<Download size={14} />
 										</button>
 									{/if}
@@ -294,7 +584,7 @@
 								<EyeOff size={20} color="#dc2626" />
 								<div class="audio-info">
 									<span class="file-name">@{item.msg.senderName}: "{item.msg.text.slice(0, 45)}{item.msg.text.length > 45 ? '...' : ''}"</span>
-									<span class="file-meta">{formatDate(item.msg.date)} · Mensaje de Texto Oculto</span>
+									<span class="file-meta">{formatDate(item.msg.date)} {item.msg.time} · Mensaje de Texto Oculto</span>
 								</div>
 								<div class="item-action-btns">
 									<button class="dl-circle" on:click={() => hiddenMediaStore.unhide(item.msg.id)} title="Mostrar en el chat y PDF (Restaurar)">
@@ -306,9 +596,20 @@
 					</div>
 				{/each}
 			{:else}
-				<!-- List view -->
+				<!-- List view con detalles completos -->
 				{#each filtered as item (item.msg.id)}
-					<div class="list-item">
+					{@const isSelected = selectedIds.has(item.msg.id)}
+					<div class="list-item" class:is-selected={isSelected}>
+						{#if item.att?.previewUrl}
+							<button class="item-checkbox-inline" on:click={() => toggleSelection(item.msg.id)}>
+								{#if isSelected}
+									<CheckSquare size={18} color="#00a884" />
+								{:else}
+									<Square size={18} color="#667781" />
+								{/if}
+							</button>
+						{/if}
+
 						{#if item.att?.kind === 'image' || item.att?.isSticker}
 							<!-- svelte-ignore a11y-click-events-have-key-events -->
 							<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
@@ -324,11 +625,19 @@
 						{:else}
 							<div class="list-thumb doc-icon" style="background:rgba(220,38,38,0.1);"><EyeOff size={20} color="#dc2626" /></div>
 						{/if}
+
 						<div class="list-info">
-							<span class="file-name">{item.att?.fileName || item.msg.text.slice(0, 45)}</span>
+							<div class="list-title-row">
+								<span class="file-name">{item.att?.fileName || item.msg.text.slice(0, 45)}</span>
+								{#if item.att}
+									<span class="suggested-name-badge">
+										WhatsApp: {generateWhatsAppFileName(item.msg, item.att)}
+									</span>
+								{/if}
+							</div>
 							<span class="file-meta">
-								{item.msg.senderName} · {formatDate(item.msg.date)} {item.msg.time.slice(0,5)}
-								{#if item.att?.sizeBytes} · {formatSize(item.att.sizeBytes)}{/if}
+								Enviado por <strong>{item.msg.senderName}</strong> · Fecha: {formatDate(item.msg.date)} {item.msg.time}
+								{#if item.att?.sizeBytes} · Tamaño: {formatSize(item.att.sizeBytes)}{/if}
 							</span>
 						</div>
 						<div class="item-action-btns">
@@ -342,7 +651,7 @@
 								</button>
 							{/if}
 							{#if item.att?.previewUrl}
-								<button class="dl-circle" on:click={() => downloadFile(item.att?.previewUrl, item.att?.fileName)} title="Descargar archivo">
+								<button class="dl-circle" on:click={() => downloadSingleWithWhatsAppName(item)} title="Descargar archivo con fecha original de WhatsApp">
 									<Download size={15} />
 								</button>
 							{/if}
@@ -358,21 +667,26 @@
 	.gallery-backdrop {
 		position: fixed;
 		inset: 0;
-		background: rgba(0,0,0,0.6);
+		background: rgba(0,0,0,0.65);
 		z-index: 800;
 		display: flex;
 		align-items: stretch;
 		justify-content: flex-end;
+		backdrop-filter: blur(2px);
 	}
 
 	.gallery-panel {
-		width: min(680px, 100vw);
+		width: min(740px, 100vw);
 		height: 100%;
 		background: #fff;
 		display: flex;
 		flex-direction: column;
-		box-shadow: -4px 0 32px rgba(0,0,0,0.2);
+		box-shadow: -4px 0 32px rgba(0,0,0,0.25);
 		animation: slideIn 0.2s ease;
+	}
+	:global([data-theme="dark"]) .gallery-panel {
+		background: #111b21;
+		color: #e9edef;
 	}
 	@keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
 
@@ -384,23 +698,168 @@
 		border-bottom: 1px solid rgba(0,0,0,0.08);
 		flex-shrink: 0;
 	}
-	.gallery-header h2 { font-size: 16px; font-weight: 700; margin: 0; }
+	:global([data-theme="dark"]) .gallery-header {
+		border-color: rgba(255,255,255,0.08);
+	}
+	.header-title-block {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+	.gallery-header h2 { font-size: 17px; font-weight: 700; margin: 0; }
+	.header-subtitle { font-size: 12px; color: #667781; }
+	:global([data-theme="dark"]) .header-subtitle { color: #8696a0; }
 
 	.header-actions { display: flex; align-items: center; gap: 8px; }
-	.action-btn {
-		display: flex; align-items: center; gap: 6px;
-		padding: 7px 14px; border-radius: 8px;
-		background: #005c4b; color: white;
-		font-size: 13px; font-weight: 600;
-		transition: opacity 0.15s;
+
+	/* Selection Action Bar */
+	.selection-action-bar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 10px 16px;
+		background: #f8fafc;
+		border-bottom: 1px solid rgba(0,0,0,0.07);
+		flex-shrink: 0;
+		gap: 12px;
+		flex-wrap: wrap;
 	}
-	.action-btn:hover { opacity: 0.85; }
+	:global([data-theme="dark"]) .selection-action-bar {
+		background: #182229;
+		border-color: rgba(255,255,255,0.06);
+	}
+	.selection-left {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+	}
+	.select-all-btn {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		background: transparent;
+		border: 1px solid rgba(0,0,0,0.12);
+		padding: 6px 12px;
+		border-radius: 8px;
+		font-size: 12px;
+		font-weight: 600;
+		color: #334155;
+		cursor: pointer;
+		transition: all 0.15s;
+	}
+	:global([data-theme="dark"]) .select-all-btn {
+		border-color: rgba(255,255,255,0.15);
+		color: #cbd5e1;
+	}
+	.select-all-btn:hover {
+		background: rgba(0,0,0,0.04);
+	}
+	:global([data-theme="dark"]) .select-all-btn:hover {
+		background: rgba(255,255,255,0.05);
+	}
+	.selection-count-badge {
+		font-size: 12px;
+		font-weight: 700;
+		color: #005c4b;
+		background: rgba(0,92,75,0.1);
+		padding: 4px 10px;
+		border-radius: 20px;
+	}
+	:global([data-theme="dark"]) .selection-count-badge {
+		color: #25d366;
+		background: rgba(37,211,102,0.15);
+	}
+	.clear-btn {
+		font-size: 11px;
+		color: #8696a0;
+		background: none;
+		border: none;
+		cursor: pointer;
+		text-decoration: underline;
+	}
+
+	.selection-right {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+	.action-btn {
+		display: flex; align-items: center; gap: 7px;
+		padding: 8px 14px; border-radius: 8px;
+		font-size: 13px; font-weight: 600;
+		cursor: pointer; border: none;
+		transition: all 0.15s;
+	}
+	.action-btn:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+	.zip-btn {
+		background: #00a884;
+		color: white;
+		box-shadow: 0 2px 8px rgba(0, 168, 132, 0.3);
+	}
+	.zip-btn:hover:not(:disabled) {
+		background: #008f6f;
+	}
+	.secondary-btn {
+		background: #f0f2f5;
+		color: #111b21;
+		border: 1px solid rgba(0,0,0,0.08);
+	}
+	:global([data-theme="dark"]) .secondary-btn {
+		background: #222e35;
+		color: #e9edef;
+		border-color: rgba(255,255,255,0.1);
+	}
+	.secondary-btn:hover:not(:disabled) {
+		background: #e2e8f0;
+	}
+
+	/* Export progress */
+	.export-progress-bar {
+		padding: 8px 16px;
+		background: #ecfdf5;
+		border-bottom: 1px solid #a7f3d0;
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		animation: fadeIn 0.2s ease;
+	}
+	:global([data-theme="dark"]) .export-progress-bar {
+		background: #064e3b;
+		border-color: #047857;
+	}
+	.progress-info {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 12px;
+		font-weight: 600;
+		color: #065f46;
+	}
+	:global([data-theme="dark"]) .progress-info { color: #a7f3d0; }
+	.progress-track {
+		height: 5px;
+		background: rgba(0,0,0,0.08);
+		border-radius: 4px;
+		overflow: hidden;
+	}
+	.progress-fill {
+		height: 100%;
+		background: #059669;
+		transition: width 0.2s ease;
+	}
+
 	.icon-btn {
 		width: 36px; height: 36px; border-radius: 50%;
 		display: flex; align-items: center; justify-content: center;
 		color: #54656f; transition: background 0.15s;
+		background: none; border: none; cursor: pointer;
 	}
+	:global([data-theme="dark"]) .icon-btn { color: #8696a0; }
 	.icon-btn:hover { background: #f0f2f5; }
+	:global([data-theme="dark"]) .icon-btn:hover { background: #222e35; }
 	.icon-btn.close { color: #dc2626; }
 
 	.filter-bar {
@@ -408,6 +867,9 @@
 		flex-direction: column;
 		border-bottom: 1px solid rgba(0,0,0,0.06);
 		flex-shrink: 0;
+	}
+	:global([data-theme="dark"]) .filter-bar {
+		border-color: rgba(255,255,255,0.06);
 	}
 	.gallery-search {
 		display: flex;
@@ -419,6 +881,10 @@
 		background: #f0f2f5;
 		border: 1px solid rgba(0,0,0,0.08);
 	}
+	:global([data-theme="dark"]) .gallery-search {
+		background: #202c33;
+		border-color: rgba(255,255,255,0.08);
+	}
 	.gallery-search input {
 		flex: 1;
 		background: none;
@@ -427,6 +893,7 @@
 		font-size: 13px;
 		color: #111b21;
 	}
+	:global([data-theme="dark"]) .gallery-search input { color: #e9edef; }
 	.clear-search {
 		background: none;
 		border: none;
@@ -447,7 +914,9 @@
 		white-space: nowrap; transition: all 0.15s;
 		border: none; background: transparent; cursor: pointer;
 	}
+	:global([data-theme="dark"]) .tab { color: #8696a0; }
 	.tab:hover { background: #f0f2f5; }
+	:global([data-theme="dark"]) .tab:hover { background: #202c33; }
 	.tab.active { background: #005c4b; color: white; }
 	.badge {
 		background: rgba(0,0,0,0.12); border-radius: 999px;
@@ -479,7 +948,7 @@
 		align-content: start;
 	}
 	.gallery-content.list {
-		display: flex; flex-direction: column; gap: 4px;
+		display: flex; flex-direction: column; gap: 6px;
 	}
 
 	.empty {
@@ -489,7 +958,16 @@
 	}
 
 	/* Grid items */
-	.grid-item { border-radius: 10px; overflow: hidden; }
+	.grid-item { 
+		border-radius: 10px; 
+		overflow: hidden;
+		position: relative;
+		transition: transform 0.15s, box-shadow 0.15s;
+	}
+	.grid-item.is-selected {
+		outline: 3px solid #00a884;
+		box-shadow: 0 0 10px rgba(0,168,132,0.4);
+	}
 
 	.thumb-wrap {
 		position: relative; cursor: pointer;
@@ -499,19 +977,70 @@
 	.thumb { width: 100%; height: 100%; object-fit: cover; display: block; }
 	.video-thumb { display: flex; align-items: center; justify-content: center; }
 	.video-placeholder, .no-thumb-placeholder {
-		display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+		display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
 		width: 100%; height: 100%; background: #2a2a2a; padding: 8px; box-sizing: border-box; text-align: center;
+	}
+	.file-badge {
+		font-size: 10px;
+		background: rgba(255,255,255,0.2);
+		padding: 2px 6px;
+		border-radius: 4px;
+		color: #fff;
 	}
 	.no-thumb-name {
 		font-size: 10px; color: rgba(255,255,255,0.7); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 	}
+
+	/* Item Checkbox */
+	.item-checkbox {
+		position: absolute;
+		top: 6px;
+		left: 6px;
+		z-index: 20;
+		background: rgba(0,0,0,0.6);
+		border: none;
+		border-radius: 6px;
+		width: 28px;
+		height: 28px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
+		transition: all 0.15s;
+	}
+	.item-checkbox:hover {
+		background: rgba(0,0,0,0.85);
+		transform: scale(1.1);
+	}
+	.item-checkbox.checked {
+		background: #ffffff;
+	}
+	.item-checkbox-inline {
+		background: none;
+		border: none;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 4px;
+	}
+
 	.thumb-overlay {
 		position: absolute; inset: 0;
-		background: linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 50%);
+		background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 60%);
 		display: flex; align-items: flex-end; justify-content: space-between;
-		padding: 6px; opacity: 0; transition: opacity 0.15s;
+		padding: 8px; opacity: 0; transition: opacity 0.15s;
 	}
 	.thumb-wrap:hover .thumb-overlay { opacity: 1; }
+	.thumb-meta-wrap {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		max-width: 65%;
+	}
+	.thumb-date { font-size: 10px; font-weight: 700; color: #fff; line-height: 1.1; }
+	.thumb-sender { font-size: 9px; color: rgba(255,255,255,0.8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 	.thumb-actions {
 		display: flex;
 		align-items: center;
@@ -519,12 +1048,12 @@
 	}
 	.thumb-dl, .thumb-eye {
 		width: 26px; height: 26px; border-radius: 50%;
-		background: rgba(0,0,0,0.5);
+		background: rgba(0,0,0,0.6);
 		display: flex; align-items: center; justify-content: center;
 		border: none; cursor: pointer; transition: background 0.15s, transform 0.15s;
 	}
 	.thumb-dl:hover, .thumb-eye:hover {
-		background: rgba(0,0,0,0.8);
+		background: rgba(0,0,0,0.9);
 		transform: scale(1.1);
 	}
 	.thumb-eye.restored {
@@ -544,53 +1073,62 @@
 		padding: 12px 14px; border-radius: 12px;
 		background: #f7f8fa; border: 1px solid rgba(0,0,0,0.06);
 	}
+	.audio-grid-item.is-selected, .doc-grid-item.is-selected {
+		border-color: #00a884;
+		background: rgba(0,168,132,0.05);
+	}
 	:global([data-theme="dark"]) .audio-grid-item,
 	:global([data-theme="dark"]) .doc-grid-item {
 		background: #182229; border-color: rgba(255,255,255,0.08);
 	}
-	.audio-icon-wrap {
-		width: 36px; height: 36px; border-radius: 50%;
-		background: #e8f5e9; display: flex; align-items: center; justify-content: center;
-		flex-shrink: 0;
-	}
-	.gallery-audio-player {
-		width: 100%;
-		height: 28px;
-		margin-top: 4px;
-	}
 	.audio-info {
 		flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0;
 	}
-	.file-name { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.file-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.file-meta { font-size: 11px; color: #8696a0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 	.dl-circle {
-		width: 30px; height: 30px; border-radius: 50%;
+		width: 32px; height: 32px; border-radius: 50%;
 		background: rgba(0,0,0,0.07);
 		display: flex; align-items: center; justify-content: center;
 		flex-shrink: 0; transition: background 0.15s;
-		color: #54656f;
+		color: #54656f; border: none; cursor: pointer;
 	}
-	.dl-circle:hover { background: rgba(0,92,75,0.12); color: #005c4b; }
+	:global([data-theme="dark"]) .dl-circle {
+		background: rgba(255,255,255,0.08);
+		color: #aebac1;
+	}
+	.dl-circle:hover { background: rgba(0,92,75,0.15); color: #00a884; }
 
 	/* List items */
 	.list-item {
 		display: flex; align-items: center; gap: 12px;
-		padding: 10px 12px; border-radius: 10px;
-		transition: background 0.15s; cursor: default;
+		padding: 10px 14px; border-radius: 10px;
+		background: #f8fafc;
+		border: 1px solid rgba(0,0,0,0.04);
+		transition: background 0.15s, border-color 0.15s;
 	}
-	.list-item:hover { background: #f7f8fa; }
+	:global([data-theme="dark"]) .list-item {
+		background: #182229;
+		border-color: rgba(255,255,255,0.05);
+	}
+	.list-item:hover { background: #f1f5f9; }
+	:global([data-theme="dark"]) .list-item:hover { background: #202c33; }
+	.list-item.is-selected {
+		border-color: #00a884;
+		background: rgba(0,168,132,0.06);
+	}
 	.list-thumb {
-		width: 48px; height: 48px; border-radius: 8px;
+		width: 52px; height: 52px; border-radius: 8px;
 		object-fit: cover; flex-shrink: 0; cursor: pointer;
 	}
 	.video-icon, .audio-icon, .doc-icon {
-		width: 48px; height: 48px; border-radius: 8px;
+		width: 52px; height: 52px; border-radius: 8px;
 		display: flex; align-items: center; justify-content: center;
 		flex-shrink: 0; cursor: pointer;
 	}
 	.list-thumb-btn {
-		width: 48px; height: 48px; border-radius: 8px;
+		width: 52px; height: 52px; border-radius: 8px;
 		display: flex; align-items: center; justify-content: center;
 		flex-shrink: 0; cursor: pointer; border: none; padding: 0;
 	}
@@ -598,6 +1136,36 @@
 	.audio-icon { background: #e8f5e9; }
 	.doc-icon { background: #ede9fe; }
 	.list-info {
-		flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0;
+		flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0;
+	}
+	.list-title-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex-wrap: wrap;
+	}
+	.suggested-name-badge {
+		font-size: 10px;
+		font-family: monospace;
+		background: #e2e8f0;
+		color: #334155;
+		padding: 2px 6px;
+		border-radius: 4px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	:global([data-theme="dark"]) .suggested-name-badge {
+		background: #2a3942;
+		color: #94a3b8;
+	}
+
+	:global(.spin) {
+		animation: spin 1s linear infinite;
+	}
+	@keyframes spin {
+		from { transform: rotate(0deg); }
+		to { transform: rotate(360deg); }
 	}
 </style>
+

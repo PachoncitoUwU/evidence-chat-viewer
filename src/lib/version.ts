@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v2.9.4 Cloud';
-export const BUILD_COMMIT = 'fix-year-cap-definitive';
+export const APP_VERSION = 'v2.9.5 Cloud';
+export const BUILD_COMMIT = 'feat-media-gallery-multiselect-zip';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Corrección definitiva: cap de año al año actual cuando todos los componentes de fecha son de 2 dígitos. Ningún chat exportado en 2026 puede mostrar fechas futuras de 2027 o 2028.';
+export const BUILD_NOTES = 'Descarga múltiple de multimedia en ZIP con nombres basados en la fecha y hora exacta de WhatsApp (WhatsApp_IMG_AAAA-MM-DD_HH-mm-ss) y metadatos de fecha en detalles.';
