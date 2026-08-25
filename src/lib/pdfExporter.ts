@@ -324,9 +324,9 @@ async function drawMessage(
 				const naturalW = imgInfo.width;
 				const naturalH = imgInfo.height;
 
-				// Stickers pequeños (máx 26mm) e Imágenes más amplias (máx 80mm de alto)
-				const maxH = att.isSticker ? 26 : 80;
-				const maxW = att.isSticker ? 26 : innerMaxW;
+				// Stickers compactos (máx 12mm) e Imágenes de fotos (máx 45mm de alto)
+				const maxH = att.isSticker ? 12 : 45;
+				const maxW = att.isSticker ? 12 : innerMaxW;
 
 				// Preservar la proporción exacta de la imagen (aspect ratio) sin compresión ni estiramiento
 				imgDrawW = maxW;
@@ -998,12 +998,12 @@ export async function exportChatToPdf(
 					if ((att.kind === 'image' || att.isSticker) && att.previewUrl) {
 						const cached = imgCache.get(att.previewUrl);
 						if (cached) {
-							const maxH = att.isSticker ? 26 : 80;
-							const maxW = att.isSticker ? 26 : innerMaxW;
+							const maxH = att.isSticker ? 12 : 45;
+							const maxW = att.isSticker ? 12 : innerMaxW;
 							const h = (cached.height * maxW) / cached.width;
 							attachmentH = Math.min(maxH, h) + 2.0;
 						} else {
-							attachmentH = att.isSticker ? 26 : 60;
+							attachmentH = att.isSticker ? 12 : 45;
 						}
 					} else if (att.kind === 'video') attachmentH = 44;
 					else if (att.kind === 'audio') attachmentH = 14;

@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v2.9.7 Cloud';
-export const BUILD_COMMIT = 'fix-pdf-text-wrap-calls-stickers-sizing';
+export const APP_VERSION = 'v2.9.8 Cloud';
+export const BUILD_COMMIT = 'feat-compact-stickers-12mm-large-gallery-mosaic';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Corrección de desborde y corte de texto en PDF, filtros para incluir/excluir llamadas contestadas y rechazadas, stickers más compactos e imágenes de mayor resolución y escala en el reporte.';
+export const BUILD_NOTES = 'Stickers reducidos a 12mm ultra-compactos, fotos escaladas en alta definición (45mm), galería en mosaico expandida a 190px con visor HD y botón para ocultar/mostrar elementos seleccionados en masa.';

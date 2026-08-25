@@ -356,6 +356,20 @@
 			<div class="selection-right">
 				{#if selectedIds.size > 0}
 					<button 
+						class="action-btn"
+						style="background: #dc2626; color: white;"
+						on:click={() => {
+							const selectedList = Array.from(selectedIds);
+							selectedList.forEach(id => hiddenMediaStore.toggle(id));
+							clearSelection();
+						}}
+						title="Ocultar o restaurar todos los elementos seleccionados del chat y del PDF"
+					>
+						<Eye size={16} />
+						<span>Ocultar / Mostrar ({selectedIds.size})</span>
+					</button>
+
+					<button 
 						class="action-btn zip-btn" 
 						on:click={downloadSelectedZip} 
 						disabled={isExportingZip}
@@ -996,8 +1010,8 @@
 	}
 	.gallery-content.grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-		gap: 10px;
+		grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+		gap: 14px;
 		align-content: start;
 	}
 	.gallery-content.list {
