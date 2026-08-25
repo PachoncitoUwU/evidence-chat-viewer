@@ -62,27 +62,32 @@
 			return visibleMedia.filter(item => item.att && item.att.isSticker) as GalleryItem[];
 		}
 
-		// Si estamos en tab stickers o all, agrupar por contenido/url/nombre para que no salgan 100 stickers repetidos
+		// Construir mapa completo de duplicados de TODOS los stickers de la conversación
+		const allStickerIdsByKey = new Map<string, string[]>();
+		for (const item of allMedia) {
+			if (item.att?.isSticker) {
+				const key = item.att.previewUrl || item.att.fileName || item.msg.text;
+				const list = allStickerIdsByKey.get(key) || [];
+				list.push(item.msg.id);
+				allStickerIdsByKey.set(key, list);
+			}
+		}
+
+		// Agrupar stickers visibles asociándolos a todos sus IDs de la conversación
 		const result: GalleryItem[] = [];
-		const stickerGroups = new Map<string, GalleryItem>();
+		const addedStickerKeys = new Set<string>();
 
 		for (const item of (activeTab === 'all' ? visibleMedia : visibleMedia.filter(i => i.att?.isSticker))) {
 			if (item.att?.isSticker) {
-				// Clave única del sticker: previewUrl o fileName o text
 				const key = item.att.previewUrl || item.att.fileName || item.msg.text;
-				if (stickerGroups.has(key)) {
-					const existing = stickerGroups.get(key)!;
-					existing.duplicateIds = existing.duplicateIds || [existing.msg.id];
-					existing.duplicateIds.push(item.msg.id);
-					existing.duplicateCount = (existing.duplicateCount || 1) + 1;
-				} else {
-					const clone: GalleryItem = {
+				if (!addedStickerKeys.has(key)) {
+					addedStickerKeys.add(key);
+					const allIds = allStickerIdsByKey.get(key) || [item.msg.id];
+					result.push({
 						...item,
-						duplicateIds: [item.msg.id],
-						duplicateCount: 1
-					};
-					stickerGroups.set(key, clone);
-					result.push(clone);
+						duplicateIds: allIds,
+						duplicateCount: allIds.length
+					});
 				}
 			} else {
 				result.push(item);
@@ -785,11 +790,31 @@
 						</div>
 						<div class="item-action-btns">
 							{#if $hiddenMediaStore.has(item.msg.id)}
-								<button class="dl-circle" on:click={() => hiddenMediaStore.unhide(item.msg.id)} title="Mostrar en el chat (Restaurar)">
+								<button 
+									class="dl-circle" 
+									on:click={() => {
+										if (item.duplicateIds && item.duplicateIds.length > 1) {
+											item.duplicateIds.forEach(id => hiddenMediaStore.unhide(id));
+										} else {
+											hiddenMediaStore.unhide(item.msg.id);
+										}
+									}} 
+									title={item.duplicateCount && item.duplicateCount > 1 ? `Mostrar todos los ${item.duplicateCount} stickers iguales (Restaurar)` : 'Mostrar en el chat (Restaurar)'}
+								>
 									<EyeOff size={15} color="#25d366" />
 								</button>
 							{:else}
-								<button class="dl-circle" on:click={() => hiddenMediaStore.hide(item.msg.id)} title="Ocultar del chat">
+								<button 
+									class="dl-circle" 
+									on:click={() => {
+										if (item.duplicateIds && item.duplicateIds.length > 1) {
+											item.duplicateIds.forEach(id => hiddenMediaStore.hide(id));
+										} else {
+											hiddenMediaStore.hide(item.msg.id);
+										}
+									}} 
+									title={item.duplicateCount && item.duplicateCount > 1 ? `Ocultar todos los ${item.duplicateCount} stickers iguales de una sola vez` : 'Ocultar del chat'}
+								>
 									<Eye size={15} />
 								</button>
 							{/if}

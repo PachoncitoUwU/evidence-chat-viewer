@@ -209,31 +209,30 @@ function wrapText(pdf: jsPDF, text: string, maxWidth: number): string[] {
 	if (!cleaned) return [];
 	
 	// Si hay palabras ultra-largas (como URLs o enlaces sin espacios que exceden maxWidth),
-	// dividir esas palabras largas para que nunca desborden la burbuja
-	const words = cleaned.split(' ');
-	const safeWords: string[] = [];
+	// dividir esas palabras largas caracter a caracter para que nunca desborden maxWidth
+	const rawLines = pdf.splitTextToSize(cleaned, maxWidth);
+	const safeLines: string[] = [];
 
-	for (const word of words) {
-		if (pdf.getTextWidth(word) > maxWidth) {
-			// Partir la palabra larga en trozos que quepan exactamente en maxWidth
-			let currentChunk = '';
-			for (let i = 0; i < word.length; i++) {
-				const char = word[i];
-				if (pdf.getTextWidth(currentChunk + char) > maxWidth) {
-					if (currentChunk) safeWords.push(currentChunk);
-					currentChunk = char;
+	for (const rawLine of rawLines) {
+		if (pdf.getTextWidth(rawLine) <= maxWidth) {
+			safeLines.push(rawLine);
+		} else {
+			// Si una línea individual aún excede maxWidth por un string sin espacios
+			let cur = '';
+			for (let i = 0; i < rawLine.length; i++) {
+				const char = rawLine[i];
+				if (pdf.getTextWidth(cur + char) > maxWidth) {
+					if (cur) safeLines.push(cur);
+					cur = char;
 				} else {
-					currentChunk += char;
+					cur += char;
 				}
 			}
-			if (currentChunk) safeWords.push(currentChunk);
-		} else {
-			safeWords.push(word);
+			if (cur) safeLines.push(cur);
 		}
 	}
 
-	const safeText = safeWords.join(' ');
-	return pdf.splitTextToSize(safeText, maxWidth);
+	return safeLines;
 }
 
 function roundedRect(
@@ -727,25 +726,35 @@ async function drawMessage(
 				pdf.text('🚫 ' + line, startX, startY);
 			} else if (urlRegex.test(line)) {
 				urlRegex.lastIndex = 0;
-				const parts = line.split(/(\s+)/);
-				let currentX = startX;
-
-				for (const part of parts) {
-					const isUrl = /(https?:\/\/[^\s]+|www\.[^\s]+)/i.test(part);
-					if (isUrl) {
-						pdf.setFont('helvetica', 'bold');
-						setTextRgb(pdf, 83, 189, 235);
-						const partW = pdf.getTextWidth(part);
-						pdf.text(part, currentX, startY);
-						const href = part.startsWith('http') ? part : `https://${part}`;
-						pdf.link(currentX, startY - 3, partW, 4, { url: href });
-						currentX += partW;
-					} else {
-						pdf.setFont('helvetica', 'normal');
-						setTexHex(pdf, textColor);
-						const partW = pdf.getTextWidth(part);
-						pdf.text(part, currentX, startY);
-						currentX += partW;
+				// Dibujar el texto completo de la línea y colocar el enlace
+				const isEntireLineUrl = /^(https?:\/\/[^\s]+|www\.[^\s]+)$/i.test(line.trim());
+				if (isEntireLineUrl) {
+					pdf.setFont('helvetica', 'bold');
+					setTextRgb(pdf, 83, 189, 235);
+					pdf.text(line, startX, startY);
+					const href = line.startsWith('http') ? line : `https://${line}`;
+					pdf.link(startX, startY - 3, pdf.getTextWidth(line), 4, { url: href });
+				} else {
+					// Línea mixta con texto y link
+					const parts = line.split(/(\s+)/);
+					let currentX = startX;
+					for (const part of parts) {
+						const isUrl = /(https?:\/\/[^\s]+|www\.[^\s]+)/i.test(part);
+						if (isUrl) {
+							pdf.setFont('helvetica', 'bold');
+							setTextRgb(pdf, 83, 189, 235);
+							const partW = pdf.getTextWidth(part);
+							pdf.text(part, currentX, startY);
+							const href = part.startsWith('http') ? part : `https://${part}`;
+							pdf.link(currentX, startY - 3, partW, 4, { url: href });
+							currentX += partW;
+						} else {
+							pdf.setFont('helvetica', 'normal');
+							setTexHex(pdf, textColor);
+							const partW = pdf.getTextWidth(part);
+							pdf.text(part, currentX, startY);
+							currentX += partW;
+						}
 					}
 				}
 			} else {
