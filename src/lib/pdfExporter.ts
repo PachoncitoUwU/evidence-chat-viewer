@@ -207,7 +207,33 @@ function drawSingleLineText(pdf: jsPDF, text: string, x: number, y: number, maxW
 function wrapText(pdf: jsPDF, text: string, maxWidth: number): string[] {
 	const cleaned = cleanPdfText(text);
 	if (!cleaned) return [];
-	return pdf.splitTextToSize(cleaned, maxWidth);
+	
+	// Si hay palabras ultra-largas (como URLs o enlaces sin espacios que exceden maxWidth),
+	// dividir esas palabras largas para que nunca desborden la burbuja
+	const words = cleaned.split(' ');
+	const safeWords: string[] = [];
+
+	for (const word of words) {
+		if (pdf.getTextWidth(word) > maxWidth) {
+			// Partir la palabra larga en trozos que quepan exactamente en maxWidth
+			let currentChunk = '';
+			for (let i = 0; i < word.length; i++) {
+				const char = word[i];
+				if (pdf.getTextWidth(currentChunk + char) > maxWidth) {
+					if (currentChunk) safeWords.push(currentChunk);
+					currentChunk = char;
+				} else {
+					currentChunk += char;
+				}
+			}
+			if (currentChunk) safeWords.push(currentChunk);
+		} else {
+			safeWords.push(word);
+		}
+	}
+
+	const safeText = safeWords.join(' ');
+	return pdf.splitTextToSize(safeText, maxWidth);
 }
 
 function roundedRect(
