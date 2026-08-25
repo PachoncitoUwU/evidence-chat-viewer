@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Download, X, Image, Film, Mic, FileText, Grid, List, Smile, Search, Eye, EyeOff, CheckSquare, Square, Archive, Loader2 } from 'lucide-svelte';
+	import { Download, X, Image, Film, Mic, FileText, Grid, List, Smile, Search, Eye, EyeOff, CheckSquare, Square, Archive, Loader2, Maximize2, Minimize2, Sparkles, Layers } from 'lucide-svelte';
 	import JSZip from 'jszip';
 	import Lightbox from './Lightbox.svelte';
 	import VideoModal from './VideoModal.svelte';
@@ -13,6 +13,8 @@
 	let activeTab: MediaTabKind = 'all';
 	let viewMode: 'grid' | 'list' = 'grid';
 	let searchQuery = '';
+	let isMaximized = false; // Permite expandir la galería a pantalla completa
+	let groupDuplicateStickers = true; // Agrupar stickers repetidos para ocultarlos en 1 clic
 
 	let lightboxSrc = '';
 	let lightboxName = '';
@@ -43,12 +45,59 @@
 
 	$: visibleMedia = allMedia.filter(item => !$hiddenMediaStore.has(item.msg.id));
 
+	// Agrupación inteligente de stickers repetidos
+	interface GalleryItem {
+		msg: ChatMessage;
+		att: MediaAttachment | null;
+		duplicateIds?: string[]; // IDs de otros stickers idénticos
+		duplicateCount?: number;
+	}
+
+	$: processedMedia = (() => {
+		if (activeTab !== 'sticker' && activeTab !== 'all') {
+			return visibleMedia as GalleryItem[];
+		}
+
+		if (!groupDuplicateStickers && activeTab === 'sticker') {
+			return visibleMedia.filter(item => item.att && item.att.isSticker) as GalleryItem[];
+		}
+
+		// Si estamos en tab stickers o all, agrupar por contenido/url/nombre para que no salgan 100 stickers repetidos
+		const result: GalleryItem[] = [];
+		const stickerGroups = new Map<string, GalleryItem>();
+
+		for (const item of (activeTab === 'all' ? visibleMedia : visibleMedia.filter(i => i.att?.isSticker))) {
+			if (item.att?.isSticker) {
+				// Clave única del sticker: previewUrl o fileName o text
+				const key = item.att.previewUrl || item.att.fileName || item.msg.text;
+				if (stickerGroups.has(key)) {
+					const existing = stickerGroups.get(key)!;
+					existing.duplicateIds = existing.duplicateIds || [existing.msg.id];
+					existing.duplicateIds.push(item.msg.id);
+					existing.duplicateCount = (existing.duplicateCount || 1) + 1;
+				} else {
+					const clone: GalleryItem = {
+						...item,
+						duplicateIds: [item.msg.id],
+						duplicateCount: 1
+					};
+					stickerGroups.set(key, clone);
+					result.push(clone);
+				}
+			} else {
+				result.push(item);
+			}
+		}
+
+		return result;
+	})();
+
 	$: filteredByTab = activeTab === 'hidden'
 		? hiddenItems
 		: activeTab === 'all'
-			? visibleMedia
+			? processedMedia
 			: activeTab === 'sticker'
-				? visibleMedia.filter(item => item.att && item.att.isSticker)
+				? processedMedia.filter(item => item.att && item.att.isSticker)
 				: activeTab === 'image'
 					? visibleMedia.filter(item => item.att && item.att.kind === 'image' && !item.att.isSticker)
 					: visibleMedia.filter(item => item.att && item.att.kind === activeTab);
@@ -309,7 +358,7 @@
 {/if}
 
 <div class="gallery-backdrop" on:click|self={onClose} on:keydown={(e) => e.key === 'Escape' && onClose()} role="dialog" aria-modal="true" tabindex="-1">
-	<div class="gallery-panel">
+	<div class="gallery-panel" class:is-maximized={isMaximized}>
 
 		<!-- Header -->
 		<header class="gallery-header">
@@ -320,7 +369,14 @@
 				</span>
 			</div>
 			<div class="header-actions">
-				<button class="icon-btn" on:click={() => (viewMode = viewMode === 'grid' ? 'list' : 'grid')} title="Cambiar vista (Cuadrícula / Lista)">
+				<button 
+					class="icon-btn" 
+					on:click={() => (isMaximized = !isMaximized)} 
+					title={isMaximized ? 'Restaurar tamaño normal' : 'Expandir a pantalla completa'}
+				>
+					{#if isMaximized}<Minimize2 size={18} />{:else}<Maximize2 size={18} />{/if}
+				</button>
+				<button class="icon-btn" on:click={() => (viewMode = viewMode === 'grid' ? 'list' : 'grid')} title="Cambiar vista (Mosaico / Lista)">
 					{#if viewMode === 'grid'}<List size={18} />{:else}<Grid size={18} />{/if}
 				</button>
 				<button class="icon-btn close" on:click={onClose} title="Cerrar galería"><X size={20} /></button>
@@ -344,6 +400,18 @@
 					<Image size={15} color="#00a884" />
 					<span>Solo Fotos y Videos</span>
 				</button>
+
+				{#if activeTab === 'sticker' || activeTab === 'all'}
+					<button 
+						class="select-all-btn filter-btn" 
+						class:active-filter={groupDuplicateStickers}
+						on:click={() => (groupDuplicateStickers = !groupDuplicateStickers)} 
+						title="Agrupa stickers idénticos en uno solo para ocultar todas sus repeticiones en 1 clic"
+					>
+						<Layers size={15} color={groupDuplicateStickers ? '#00a884' : '#667781'} />
+						<span>{groupDuplicateStickers ? 'Agrupados (1 por tipo)' : 'Ver repetidos'}</span>
+					</button>
+				{/if}
 
 				{#if selectedIds.size > 0}
 					<span class="selection-count-badge">
@@ -491,18 +559,47 @@
 									</button>
 								{/if}
 
+								{#if item.duplicateCount && item.duplicateCount > 1}
+									<div class="duplicate-badge" title="{item.duplicateCount} stickers idénticos enviados en la conversación">
+										<span>×{item.duplicateCount}</span>
+									</div>
+								{/if}
+
 								<div class="thumb-overlay">
 									<div class="thumb-meta-wrap">
 										<span class="thumb-date">{formatDate(item.msg.date)} {item.msg.time?.slice(0,5) || ''}</span>
 										<span class="thumb-sender">{item.msg.senderName}</span>
+										{#if item.duplicateCount && item.duplicateCount > 1}
+											<span class="thumb-dup-label">({item.duplicateCount} iguales)</span>
+										{/if}
 									</div>
 									<div class="thumb-actions">
 										{#if $hiddenMediaStore.has(item.msg.id)}
-											<button class="thumb-eye restored" on:click|stopPropagation={() => hiddenMediaStore.unhide(item.msg.id)} title="Mostrar en el chat y PDF (Restaurar)">
+											<button 
+												class="thumb-eye restored" 
+												on:click|stopPropagation={() => {
+													if (item.duplicateIds && item.duplicateIds.length > 1) {
+														item.duplicateIds.forEach(id => hiddenMediaStore.unhide(id));
+													} else {
+														hiddenMediaStore.unhide(item.msg.id);
+													}
+												}} 
+												title={item.duplicateCount && item.duplicateCount > 1 ? `Mostrar todos los ${item.duplicateCount} stickers iguales` : 'Mostrar en el chat y PDF (Restaurar)'}
+											>
 												<EyeOff size={14} color="#25d366" />
 											</button>
 										{:else}
-											<button class="thumb-eye" on:click|stopPropagation={() => hiddenMediaStore.hide(item.msg.id)} title="Ocultar del chat y PDF">
+											<button 
+												class="thumb-eye" 
+												on:click|stopPropagation={() => {
+													if (item.duplicateIds && item.duplicateIds.length > 1) {
+														item.duplicateIds.forEach(id => hiddenMediaStore.hide(id));
+													} else {
+														hiddenMediaStore.hide(item.msg.id);
+													}
+												}} 
+												title={item.duplicateCount && item.duplicateCount > 1 ? `Ocultar todos los ${item.duplicateCount} stickers iguales de una sola vez` : 'Ocultar del chat y PDF'}
+											>
 												<Eye size={14} color="white" />
 											</button>
 										{/if}
@@ -729,6 +826,10 @@
 		flex-direction: column;
 		box-shadow: -4px 0 32px rgba(0,0,0,0.25);
 		animation: slideIn 0.2s ease;
+		transition: width 0.2s ease;
+	}
+	.gallery-panel.is-maximized {
+		width: 100vw;
 	}
 	:global([data-theme="dark"]) .gallery-panel {
 		background: #111b21;
@@ -995,14 +1096,32 @@
 		background: #f7f8fa;
 		border: 1px solid rgba(0,0,0,0.06);
 	}
-	.thumb.sticker-img-thumb {
-		object-fit: contain;
-		padding: 8px;
+	.select-all-btn.active-filter {
+		background: rgba(0,168,132,0.12);
+		border-color: #00a884;
+		color: #00a884;
+		font-weight: 700;
 	}
-	.list-thumb.is-sticker-list {
-		object-fit: contain;
-		background: #f7f8fa;
-		padding: 4px;
+
+	.duplicate-badge {
+		position: absolute;
+		top: 6px;
+		right: 6px;
+		background: #00a884;
+		color: #ffffff;
+		font-size: 10px;
+		font-weight: 800;
+		padding: 2px 7px;
+		border-radius: 999px;
+		box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+		z-index: 10;
+		letter-spacing: 0.5px;
+	}
+
+	.thumb-dup-label {
+		font-size: 8.5px;
+		color: #53bdeb;
+		font-weight: 700;
 	}
 
 	.gallery-content {
