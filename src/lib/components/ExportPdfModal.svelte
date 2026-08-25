@@ -2,7 +2,8 @@
 	import {
 		FileText, Calendar, X, Download, CheckCircle2,
 		Filter, ShieldCheck, Palette, Image as ImageIcon,
-		Video, Mic, File, Smile, MessageSquare, AlertCircle
+		Video, Mic, File, Smile, MessageSquare, AlertCircle,
+		PhoneCall, PhoneMissed
 	} from 'lucide-svelte';
 	import type { ChatMessage, ChatMeta, PdfExportOptions } from '$types/chat.types';
 
@@ -28,6 +29,8 @@
 	let includeAudios: boolean = true;
 	let includeDocuments: boolean = true;
 	let includeStickers: boolean = true;
+	let includeAnsweredCalls: boolean = true;
+	let includeMissedCalls: boolean = true;
 	let includeSystemEvents: boolean = false;
 	let includeGhostMessages: boolean = false;
 
@@ -60,6 +63,14 @@
 			// Eventos de sistema
 			if (m.isSystemEvent) {
 				return includeSystemEvents;
+			}
+
+			// Mensajes de llamada
+			if (m.callInfo) {
+				const isMissed = m.callInfo.status === 'missed' || m.callInfo.status === 'declined';
+				if (isMissed && !includeMissedCalls) return false;
+				if (!isMissed && !includeAnsweredCalls) return false;
+				return true;
 			}
 
 			// Mensajes vacíos / sin contenido
@@ -100,6 +111,8 @@
 		includeAudios = enable;
 		includeDocuments = enable;
 		includeStickers = enable;
+		includeAnsweredCalls = enable;
+		includeMissedCalls = enable;
 		includeSystemEvents = enable;
 		includeGhostMessages = enable;
 	}
@@ -114,6 +127,8 @@
 			includeAudios,
 			includeDocuments,
 			includeStickers,
+			includeAnsweredCalls,
+			includeMissedCalls,
 			includeSystemEvents,
 			includeGhostMessages,
 			watermarkText: enableWatermark ? watermarkText.trim() : undefined,
@@ -243,6 +258,18 @@
 							<input type="checkbox" bind:checked={includeStickers} disabled={isExporting} />
 							<Smile size={16} class="ic-stk" />
 							<span>Stickers y GIFs</span>
+						</label>
+
+						<label class="check-box" class:checked={includeAnsweredCalls}>
+							<input type="checkbox" bind:checked={includeAnsweredCalls} disabled={isExporting} />
+							<PhoneCall size={16} class="ic-call" />
+							<span>Llamadas contestadas</span>
+						</label>
+
+						<label class="check-box" class:checked={includeMissedCalls}>
+							<input type="checkbox" bind:checked={includeMissedCalls} disabled={isExporting} />
+							<PhoneMissed size={16} class="ic-missed" />
+							<span>Llamadas perdidas / rechazadas</span>
 						</label>
 
 						<label class="check-box" class:checked={includeSystemEvents}>

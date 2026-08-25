@@ -324,8 +324,9 @@ async function drawMessage(
 				const naturalW = imgInfo.width;
 				const naturalH = imgInfo.height;
 
-				const maxH = att.isSticker ? 32 : 60;
-				const maxW = innerMaxW;
+				// Stickers pequeños (máx 26mm) e Imágenes más amplias (máx 80mm de alto)
+				const maxH = att.isSticker ? 26 : 80;
+				const maxW = att.isSticker ? 26 : innerMaxW;
 
 				// Preservar la proporción exacta de la imagen (aspect ratio) sin compresión ni estiramiento
 				imgDrawW = maxW;
@@ -367,7 +368,7 @@ async function drawMessage(
 	}
 
 	pdf.setFont('helvetica', 'normal');
-	pdf.setFontSize(10.5);
+	pdf.setFontSize(bodyFontSize);
 	textLines.forEach((line) => {
 		maxLineWidth = Math.max(maxLineWidth, pdf.getTextWidth(line));
 	});
@@ -381,12 +382,12 @@ async function drawMessage(
 		calculatedW = singleLineW + timeStrW + bubblePadX * 2 + 5;
 	}
 
-	// Para imágenes, ajustar la burbuja al ancho de la foto (o al texto si tiene pie de foto)
+	// Para imágenes/stickers, ajustar la burbuja al ancho del recurso
 	if (imgDrawW > 0) {
 		if (textLines.length > 0) {
 			calculatedW = Math.max(imgDrawW + bubblePadX * 2, maxLineWidth + bubblePadX * 2 + 10);
 		} else {
-			calculatedW = imgDrawW + bubblePadX * 2;
+			calculatedW = imgDrawW + bubblePadX * 2 + 3;
 		}
 	} else if (msg.attachment?.kind === 'video') {
 		calculatedW = maxBubbleW; // Videos ocupan todo el ancho disponible
@@ -653,7 +654,7 @@ async function drawMessage(
 	// ── Texto del mensaje ──
 	if (textLines.length > 0) {
 		pdf.setFont('helvetica', isDeleted ? 'italic' : 'normal');
-		pdf.setFontSize(10.5);
+		pdf.setFontSize(bodyFontSize);
 		const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
 
 		for (let i = 0; i < textLines.length; i++) {
@@ -877,6 +878,14 @@ export async function exportChatToPdf(
 		if (options?.dateTo && m.date > options.dateTo) return false;
 		if (m.isSystemEvent) return options?.includeSystemEvents ?? false;
 
+		// Filtro de llamadas
+		if (m.callInfo) {
+			const isMissed = m.callInfo.status === 'missed' || m.callInfo.status === 'declined';
+			if (isMissed && options?.includeMissedCalls === false) return false;
+			if (!isMissed && options?.includeAnsweredCalls === false) return false;
+			return true;
+		}
+
 		const isEmpty = !m.text && (!m.attachment || m.attachment.status === 'omitted' || m.attachment.status === 'missing') && !m.callInfo;
 		if (isEmpty && !(options?.includeGhostMessages ?? false)) return false;
 
@@ -974,9 +983,12 @@ export async function exportChatToPdf(
 		} else {
 			try {
 				const innerMaxW = CONTENT_W * 0.72 - 6;
-				const textLines = (msg.text && !msg.callInfo) ? wrapText(pdf, msg.text, innerMaxW) : [];
 				const fontSizeVal = options?.fontSize || 8.5;
-				const textH = textLines.length * (fontSizeVal * 0.52);
+				pdf.setFont('helvetica', 'normal');
+				pdf.setFontSize(fontSizeVal);
+				const textLines = (msg.text && !msg.callInfo) ? wrapText(pdf, msg.text, innerMaxW) : [];
+				const lineHVal = Math.max(3.8, fontSizeVal * 0.52);
+				const textH = textLines.length * lineHVal;
 				const senderH = (isGroup && (!msg.senderRole || msg.senderRole !== 'owner')) ? 4.8 : 0;
 				const callH = msg.callInfo ? 15.0 : 0;
 
@@ -986,11 +998,12 @@ export async function exportChatToPdf(
 					if ((att.kind === 'image' || att.isSticker) && att.previewUrl) {
 						const cached = imgCache.get(att.previewUrl);
 						if (cached) {
-							const maxH = att.isSticker ? 32 : 60;
-							const h = (cached.height * innerMaxW) / cached.width;
+							const maxH = att.isSticker ? 26 : 80;
+							const maxW = att.isSticker ? 26 : innerMaxW;
+							const h = (cached.height * maxW) / cached.width;
 							attachmentH = Math.min(maxH, h) + 2.0;
 						} else {
-							attachmentH = 48;
+							attachmentH = att.isSticker ? 26 : 60;
 						}
 					} else if (att.kind === 'video') attachmentH = 44;
 					else if (att.kind === 'audio') attachmentH = 14;

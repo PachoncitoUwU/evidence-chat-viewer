@@ -262,7 +262,7 @@ export async function fetchUserSupabaseChats(userKey: string): Promise<CloudChat
  */
 export async function loadSupabaseChatSession(
 	chatId: string
-): Promise<{ caseInfo: EvidenceCase; meta: ChatMeta; messages: ChatMessage[]; days: DaySummary[] } | null> {
+): Promise<{ caseInfo: EvidenceCase; meta: ChatMeta; messages: ChatMessage[]; days: DaySummary[]; hiddenIds?: string[] } | null> {
 	if (!isSupabaseConfigured() || !chatId) return null;
 
 	const { data: chatRow, error: chatError } = await supabase

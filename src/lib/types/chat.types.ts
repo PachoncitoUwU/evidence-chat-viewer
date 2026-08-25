@@ -152,6 +152,8 @@ export interface PdfExportOptions {
 	includeAudios?: boolean;
 	includeDocuments?: boolean;
 	includeStickers?: boolean;
+	includeAnsweredCalls?: boolean;
+	includeMissedCalls?: boolean;
 	includeSystemEvents?: boolean;
 	includeGhostMessages?: boolean;
 	// Opciones de informe pericial y diseño
