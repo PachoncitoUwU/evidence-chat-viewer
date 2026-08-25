@@ -1039,9 +1039,16 @@
 	.thumb-wrap {
 		position: relative; cursor: pointer;
 		border-radius: 10px; overflow: hidden;
-		aspect-ratio: 1; background: #1c1c1c;
+		width: 100%; min-height: 160px; height: 180px;
+		background: #1c1c1c;
+		display: flex; align-items: center; justify-content: center;
 	}
-	.thumb { width: 100%; height: 100%; object-fit: cover; display: block; }
+	.thumb {
+		width: 100%; height: 100%;
+		object-fit: cover;
+		display: block;
+		background: #182229;
+	}
 	.video-thumb { display: flex; align-items: center; justify-content: center; }
 	.video-placeholder, .no-thumb-placeholder {
 		display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
@@ -1094,9 +1101,10 @@
 
 	.thumb-overlay {
 		position: absolute; inset: 0;
-		background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 60%);
+		background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 60%);
 		display: flex; align-items: flex-end; justify-content: space-between;
 		padding: 8px; opacity: 0; transition: opacity 0.15s;
+		pointer-events: none;
 	}
 	.thumb-wrap:hover .thumb-overlay { opacity: 1; }
 	.thumb-meta-wrap {
@@ -1112,6 +1120,7 @@
 		display: flex;
 		align-items: center;
 		gap: 4px;
+		pointer-events: auto;
 	}
 	.thumb-dl, .thumb-eye {
 		width: 26px; height: 26px; border-radius: 50%;

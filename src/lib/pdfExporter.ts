@@ -17,10 +17,43 @@ import { hiddenMediaStore } from '$lib/stores/hiddenMediaStore';
 import type { ChatMessage, ChatMeta, PdfExportOptions } from './types/chat.types';
 export type { PdfExportOptions };
 
-const PDF_W_MM = 210;
-const PDF_H_MM = 297;
-const MARGIN = 10;
-const CONTENT_W = PDF_W_MM - MARGIN * 2;
+export interface PageLayout {
+	pageW: number;
+	pageH: number;
+	margin: number;
+	contentW: number;
+	format: string | [number, number];
+}
+
+export function getPageLayout(options?: PdfExportOptions): PageLayout {
+	const paper = options?.paperSize || 'legal';
+	// Márgenes mínimos configurables: 6mm si compactMargins es true (o por defecto para ahorrar papel), o 10mm estándar
+	const margin = options?.compactMargins !== false ? 6 : 10;
+
+	let pageW = 210;
+	let pageH = 297;
+	let format: string | [number, number] = 'a4';
+
+	if (paper === 'legal') {
+		// Tamaño Oficio / Legal: 215.9 mm x 355.6 mm (8.5 x 14 pulgadas)
+		pageW = 215.9;
+		pageH = 355.6;
+		format = [215.9, 355.6];
+	} else if (paper === 'letter') {
+		// Tamaño Carta / Letter: 215.9 mm x 279.4 mm (8.5 x 11 pulgadas)
+		pageW = 215.9;
+		pageH = 279.4;
+		format = 'letter';
+	} else {
+		// A4: 210 mm x 297 mm
+		pageW = 210;
+		pageH = 297;
+		format = 'a4';
+	}
+
+	const contentW = pageW - margin * 2;
+	return { pageW, pageH, margin, contentW, format };
+}
 
 // ── Helpers de color ───────────────────────────────────────────────
 
@@ -271,6 +304,7 @@ async function drawMessage(
 	msg: ChatMessage,
 	y: number,
 	theme: PdfThemeColors,
+	layout: PageLayout,
 	isGroup: boolean = false,
 	fontSize: number = 8.5
 ): Promise<DrawResult> {
@@ -280,7 +314,7 @@ async function drawMessage(
 	const bubbleBg = isOwner ? theme.bubbleOutBg : theme.bubbleInBg;
 	const textColor = isOwner ? theme.bubbleOutText : theme.bubbleInText;
 
-	const maxBubbleW = CONTENT_W * 0.72;
+	const maxBubbleW = layout.contentW * 0.72;
 	const bubblePadX = 3.2;
 	const bubblePadY = 2.5;
 
@@ -401,8 +435,8 @@ async function drawMessage(
 	const bubbleW = Math.max(22, Math.min(maxBubbleW, calculatedW));
 
 	const bubbleX = isOwner
-		? MARGIN + CONTENT_W - bubbleW
-		: MARGIN + 2.5;
+		? layout.margin + layout.contentW - bubbleW
+		: layout.margin + 2.0;
 
 	// ── Fondo de burbuja ──
 	setFill(pdf, bubbleBg);
@@ -545,7 +579,7 @@ async function drawMessage(
 			setFill(pdf, '#ffffff');
 			pdf.triangle(vcx - 3.0, vcy - 5.0, vcx - 3.0, vcy + 5.0, vcx + 5.5, vcy, 'F');
 
-			// Badge de duraci\u00f3n esquina inferior izquierda
+			// Badge de duración esquina inferior izquierda
 			const vidDur = att.durationSeconds
 				? `${Math.floor(att.durationSeconds / 60)}:${Math.floor(att.durationSeconds % 60).toString().padStart(2, '0')}`
 				: '';
@@ -557,7 +591,7 @@ async function drawMessage(
 				setTextRgb(pdf, 255, 255, 255);
 				pdf.text(vidDur, attX + 5, drawY + vidH - 4.5);
 			} else {
-				// Nombre del archivo si no hay duraci\u00f3n
+				// Nombre del archivo si no hay duración
 				pdf.setFont('helvetica', 'normal');
 				pdf.setFontSize(7.5);
 				setTextRgb(pdf, 180, 180, 180);
@@ -565,9 +599,9 @@ async function drawMessage(
 			}
 			drawY += vidH + 2.0;
 
-		// ── NOTA DE VOZ REALISTA (Exacamente como WhatsApp) ──
+		// ── NOTA DE VOZ REALISTA (Exactamente como WhatsApp) ──
 		} else if (att.kind === 'audio') {
-			// Bot\u00f3n de reproducir (c\u00edrculo verde) a la izquierda
+			// Botón de reproducir (círculo verde) a la izquierda
 			const playR = 5.2;
 			const playX = bubbleX + bubblePadX + playR + 1.5;
 			const playY = drawY + 7.0;
@@ -593,7 +627,7 @@ async function drawMessage(
 				roundedRect(pdf, bx, by, wfBarW, bh, 0.3, 'F');
 			}
 
-			// Duraci\u00f3n debajo de la waveform (alineada con el inicio de las barras)
+			// Duración debajo de la waveform (alineada con el inicio de las barras)
 			const audDur = att.durationSeconds
 				? `${Math.floor(att.durationSeconds / 60)}:${Math.floor(att.durationSeconds % 60).toString().padStart(2, '0')}`
 				: '0:00';
@@ -604,14 +638,14 @@ async function drawMessage(
 
 			drawY += attachmentH;
 
-		// ── DOCUMENTO: Card tipo WhatsApp con \u00edcono de archivo coloreado ──
+		// ── DOCUMENTO: Card tipo WhatsApp con ícono de archivo coloreado ──
 		} else if (att.kind === 'document') {
 			const docW = bubbleW - bubblePadX * 2;
 			const docH = 14.0;
 			setFill(pdf, theme.name === 'light' ? '#f0f2f5' : '#182229');
 			roundedRect(pdf, attX, drawY, docW, docH, 2.2, 'F');
 
-			// \u00cdcono de archivo con color seg\u00fan extensi\u00f3n
+			// Ícono de archivo con color según extensión
 			const fileExt = (att.fileName || '').split('.').pop()?.toUpperCase() ?? 'DOC';
 			const fileColor = fileExt === 'PDF' ? '#dc2626' :
 				(fileExt === 'XLS' || fileExt === 'XLSX' || fileExt === 'CSV') ? '#16a34a' :
@@ -622,7 +656,7 @@ async function drawMessage(
 			// Esquina doblada simulada
 			setFill(pdf, theme.name === 'light' ? '#f0f2f5' : '#182229');
 			pdf.triangle(attX + 7.0, drawY + 2.5, attX + 8.5, drawY + 2.5, attX + 8.5, drawY + 4.5, 'F');
-			// Extensi\u00f3n dentro del \u00edcono (texto blanco)
+			// Extensión dentro del ícono (texto blanco)
 			pdf.setFont('helvetica', 'bold');
 			pdf.setFontSize(4.2);
 			setTextRgb(pdf, 255, 255, 255);
@@ -634,7 +668,7 @@ async function drawMessage(
 			setTexHex(pdf, textColor);
 			drawSingleLineText(pdf, att.fileName || 'Documento', attX + 11.0, drawY + 7.5, docW - 13);
 
-			// Tipo y tama\u00f1o
+			// Tipo y tamaño
 			pdf.setFont('helvetica', 'normal');
 			pdf.setFontSize(7.5);
 			setTexHex(pdf, theme.metaColor);
@@ -715,12 +749,12 @@ async function drawMessage(
 	return { heightUsed: bubbleH + 2.5 };
 }
 
-function drawSystemEvent(pdf: jsPDF, text: string, y: number, theme: PdfThemeColors): number {
+function drawSystemEvent(pdf: jsPDF, text: string, y: number, theme: PdfThemeColors, layout: PageLayout): number {
 	pdf.setFont('helvetica', 'normal');
 	pdf.setFontSize(8);
 	const textW = pdf.getTextWidth(cleanPdfText(text));
 	const pillW = textW + 12;
-	const pillX = (PDF_W_MM - pillW) / 2;
+	const pillX = (layout.pageW - pillW) / 2;
 	setFill(pdf, theme.pillBg);
 	roundedRect(pdf, pillX, y, pillW, 6.0, 1.8, 'F');
 	setTexHex(pdf, theme.pillText);
@@ -728,12 +762,12 @@ function drawSystemEvent(pdf: jsPDF, text: string, y: number, theme: PdfThemeCol
 	return 7.5;
 }
 
-function drawDateSeparator(pdf: jsPDF, label: string, y: number, theme: PdfThemeColors): number {
+function drawDateSeparator(pdf: jsPDF, label: string, y: number, theme: PdfThemeColors, layout: PageLayout): number {
 	pdf.setFont('helvetica', 'bold');
 	pdf.setFontSize(8.5);
 	const textW = pdf.getTextWidth(label);
 	const pillW = textW + 14;
-	const pillX = (PDF_W_MM - pillW) / 2;
+	const pillX = (layout.pageW - pillW) / 2;
 	setFill(pdf, theme.pillBg);
 	roundedRect(pdf, pillX, y, pillW, 6.5, 2, 'F');
 	setTexHex(pdf, theme.pillText);
@@ -755,24 +789,24 @@ function drawWatermark(pdf: jsPDF, text: string) {
 	pdf.restoreGraphicsState();
 }
 
-function drawCoverPage(pdf: jsPDF, meta: ChatMeta, options?: PdfExportOptions) {
+function drawCoverPage(pdf: jsPDF, meta: ChatMeta, layout: PageLayout, options?: PdfExportOptions) {
 	const theme = getThemeColors(options?.pdfTheme);
 
 	setFill(pdf, theme.name === 'dark' ? '#0d1418' : '#f8fafc');
-	pdf.rect(0, 0, PDF_W_MM, PDF_H_MM, 'F');
+	pdf.rect(0, 0, layout.pageW, layout.pageH, 'F');
 
-	const headerY = 25;
+	const headerY = layout.margin + 12;
 	setFill(pdf, theme.name === 'dark' ? '#005c4b' : '#00a884');
-	pdf.rect(MARGIN, headerY, CONTENT_W, 20, 'F');
+	pdf.rect(layout.margin, headerY, layout.contentW, 20, 'F');
 
 	pdf.setFont('helvetica', 'bold');
 	pdf.setFontSize(14);
 	setTextRgb(pdf, 255, 255, 255);
-	pdf.text('INFORME DE EVIDENCIA DIGITAL — CHAT DE WHATSAPP', PDF_W_MM / 2, headerY + 12, { align: 'center' });
+	pdf.text('INFORME DE EVIDENCIA DIGITAL — CHAT DE WHATSAPP', layout.pageW / 2, headerY + 12, { align: 'center' });
 
 	const metaBoxY = headerY + 28;
 	setFill(pdf, theme.pillBg);
-	roundedRect(pdf, MARGIN, metaBoxY, CONTENT_W, 36, 2.5, 'F');
+	roundedRect(pdf, layout.margin, metaBoxY, layout.contentW, 36, 2.5, 'F');
 
 	const cleanTitle = (meta.title || '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F\u200e\u200f\u202a\u202b\u202c\u202d\u202e\ufeff\u200b]/g, '').trim() || 'Chat de WhatsApp';
 	const cleanSource = (meta.sourceFileName || '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F\u200e\u200f\u202a\u202b\u202c\u202d\u202e\ufeff\u200b]/g, '').trim() || 'WhatsApp_Chat.zip';
@@ -780,23 +814,23 @@ function drawCoverPage(pdf: jsPDF, meta: ChatMeta, options?: PdfExportOptions) {
 	pdf.setFont('helvetica', 'bold');
 	pdf.setFontSize(12);
 	setTexHex(pdf, theme.bubbleInText);
-	pdf.text(cleanTitle, MARGIN + 8, metaBoxY + 10);
+	pdf.text(cleanTitle, layout.margin + 8, metaBoxY + 10);
 
 	pdf.setFont('helvetica', 'normal');
 	pdf.setFontSize(9.5);
 	setTexHex(pdf, theme.metaColor);
-	pdf.text(`Origen: ${cleanSource}`, MARGIN + 8, metaBoxY + 18);
-	pdf.text(`Fecha de procesamiento: ${new Date(meta.parsedAt).toLocaleString('es-ES')}`, MARGIN + 8, metaBoxY + 26);
+	pdf.text(`Origen: ${cleanSource}`, layout.margin + 8, metaBoxY + 18);
+	pdf.text(`Fecha de procesamiento: ${new Date(meta.parsedAt).toLocaleString('es-ES')}`, layout.margin + 8, metaBoxY + 26);
 
 	if (options?.caseNumber || options?.investigatorName || options?.courtInstitution) {
 		const boxY = metaBoxY + 42;
 		setFill(pdf, theme.pillBg);
-		roundedRect(pdf, MARGIN, boxY, CONTENT_W, 30, 2.5, 'F');
+		roundedRect(pdf, layout.margin, boxY, layout.contentW, 30, 2.5, 'F');
 
 		pdf.setFont('helvetica', 'bold');
 		pdf.setFontSize(9.5);
 		setTexHex(pdf, theme.senderColor);
-		pdf.text('DATOS DE LA INVESTIGACIÓN / CADENA DE CUSTODIA', MARGIN + 8, boxY + 8);
+		pdf.text('DATOS DE LA INVESTIGACIÓN / CADENA DE CUSTODIA', layout.margin + 8, boxY + 8);
 
 		pdf.setFont('helvetica', 'normal');
 		pdf.setFontSize(9);
@@ -804,56 +838,17 @@ function drawCoverPage(pdf: jsPDF, meta: ChatMeta, options?: PdfExportOptions) {
 
 		let curY = boxY + 16;
 		if (options.caseNumber) {
-			pdf.text(`N° de Expediente / Registro:  ${options.caseNumber}`, MARGIN + 8, curY);
+			pdf.text(`N° de Expediente / Registro:  ${options.caseNumber}`, layout.margin + 8, curY);
 			curY += 6;
 		}
 		if (options.investigatorName) {
-			pdf.text(`Perito / Investigador:        ${options.investigatorName}`, MARGIN + 8, curY);
+			pdf.text(`Perito / Investigador:        ${options.investigatorName}`, layout.margin + 8, curY);
 			curY += 6;
 		}
 		if (options.courtInstitution) {
-			pdf.text(`Juzgado / Unidad:              ${options.courtInstitution}`, MARGIN + 8, curY);
+			pdf.text(`Juzgado / Unidad:              ${options.courtInstitution}`, layout.margin + 8, curY);
 		}
 	}
-
-	const statsY = 154;
-	pdf.setFont('helvetica', 'bold');
-	pdf.setFontSize(11);
-	setTexHex(pdf, theme.senderColor);
-	pdf.text('RESUMEN DE REGISTROS EXTRAÍDOS', PDF_W_MM / 2, statsY, { align: 'center' });
-
-	pdf.setFont('helvetica', 'normal');
-	pdf.setFontSize(9.5);
-	setTexHex(pdf, theme.metaColor);
-	pdf.text(`Total de mensajes procesados: ${meta.totalMessages}`, PDF_W_MM / 2, statsY + 8, { align: 'center' });
-	pdf.text(`Rango temporal: ${meta.dateRangeStart ?? 'N/A'}  →  ${meta.dateRangeEnd ?? 'N/A'}`, PDF_W_MM / 2, statsY + 15, { align: 'center' });
-
-	if (meta.participants.length) {
-		pdf.setFontSize(9);
-		pdf.text('Participantes de la conversación:', PDF_W_MM / 2, statsY + 25, { align: 'center' });
-		meta.participants.forEach((p, i) => {
-			setTexHex(pdf, theme.bubbleInText);
-			pdf.text(`• ${p}`, PDF_W_MM / 2, statsY + 32 + i * 6, { align: 'center' });
-		});
-	}
-
-	const footerBoxY = PDF_H_MM - 45;
-	setFill(pdf, theme.pillBg);
-	roundedRect(pdf, MARGIN, footerBoxY, CONTENT_W, 30, 2, 'F');
-
-	pdf.setFont('helvetica', 'bold');
-	pdf.setFontSize(8);
-	setTexHex(pdf, theme.senderColor);
-	pdf.text('FIRMA DE INTEGRIDAD CRIPTOGRÁFICA (SHA-256):', MARGIN + 6, footerBoxY + 7);
-
-	pdf.setFont('courier', 'normal');
-	pdf.setFontSize(7.5);
-	setTexHex(pdf, theme.metaColor);
-	pdf.text(meta.sourceHash || 'No disponible', MARGIN + 6, footerBoxY + 14, { maxWidth: CONTENT_W - 12 });
-
-	pdf.setFont('helvetica', 'italic');
-	pdf.setFontSize(7.5);
-	pdf.text(`Fecha de generación: ${new Date().toLocaleString('es-ES')}  ·  Archivo origen: ${meta.sourceFileName}`, MARGIN + 6, footerBoxY + 23);
 }
 
 // ── Exportación a PDF principal ───────────────────────────────────
@@ -866,7 +861,8 @@ export async function exportChatToPdf(
 ): Promise<void> {
 	imgCache.clear();
 	callIconCache.clear();
-	const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+	const layout = getPageLayout(options);
+	const pdf = new jsPDF({ unit: 'mm', format: layout.format, orientation: 'portrait' });
 	const theme = getThemeColors(options?.pdfTheme);
 
 	const hiddenSet = get(hiddenMediaStore);
@@ -927,62 +923,65 @@ export async function exportChatToPdf(
 		const chunk = imgMessages.slice(i, i + PARALLEL_BATCH);
 		await Promise.all(
 			chunk.map((m) => {
-				const att = m.attachment!;
-				return loadAndProcessImage(att.previewUrl!, att.isSticker);
+				if (m.attachment?.previewUrl) {
+					return loadAndProcessImage(m.attachment.previewUrl, m.attachment.isSticker);
+				}
+				return Promise.resolve(null);
 			})
 		);
-		if (onProgress) onProgress(3 + Math.round(((i + PARALLEL_BATCH) / Math.max(imgMessages.length, 1)) * 20));
+		// Progreso: 3% → 23%
+		if (onProgress) onProgress(3 + Math.round(((i + chunk.length) / imgMessages.length) * 20));
+		await yieldToUI();
 	}
 
 	if (onProgress) onProgress(23);
 
 	if (options?.includeCoverPage !== false) {
-		drawCoverPage(pdf, meta, options);
-		if (options?.watermarkText) {
-			drawWatermark(pdf, options.watermarkText);
-		}
+		drawCoverPage(pdf, meta, layout, options);
 		pdf.addPage();
 	}
 
+	// Fondo de página de mensajes
 	setFill(pdf, theme.pageBg);
-	pdf.rect(0, 0, PDF_W_MM, PDF_H_MM, 'F');
+	pdf.rect(0, 0, layout.pageW, layout.pageH, 'F');
 
-	let currentY = MARGIN + 4;
+	let currentY = layout.margin + 3;
 	let lastDate = '';
 	const total = exportMessages.length;
 
 	for (let i = 0; i < total; i++) {
 		const msg = exportMessages[i];
 
-		if (!msg.isSystemEvent && msg.date !== lastDate) {
+		// Separador de fecha
+		if (msg.date && msg.date !== lastDate) {
 			lastDate = msg.date;
 			const [y, mo, d] = msg.date.split('-');
 			const dt = new Date(Number(y), Number(mo) - 1, Number(d));
 			const label = dt.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
 
-			if (currentY + 12 > PDF_H_MM - MARGIN) {
+			if (currentY + 12 > layout.pageH - layout.margin) {
 				pdf.addPage();
 				setFill(pdf, theme.pageBg);
-				pdf.rect(0, 0, PDF_W_MM, PDF_H_MM, 'F');
-				currentY = MARGIN + 4;
+				pdf.rect(0, 0, layout.pageW, layout.pageH, 'F');
+				currentY = layout.margin + 3;
 			}
 			currentY += 1.5;
-			const dateH = drawDateSeparator(pdf, label, currentY, theme);
+			const dateH = drawDateSeparator(pdf, label, currentY, theme, layout);
 			currentY += dateH;
 		}
 
 		if (msg.isSystemEvent) {
-			if (currentY + 9 > PDF_H_MM - MARGIN) {
+			if (currentY + 9 > layout.pageH - layout.margin) {
 				pdf.addPage();
 				setFill(pdf, theme.pageBg);
-				pdf.rect(0, 0, PDF_W_MM, PDF_H_MM, 'F');
-				currentY = MARGIN + 4;
+				pdf.rect(0, 0, layout.pageW, layout.pageH, 'F');
+				currentY = layout.margin + 3;
 			}
-			const h = drawSystemEvent(pdf, msg.text, currentY, theme);
+			const h = drawSystemEvent(pdf, msg.text, currentY, theme, layout);
 			currentY += h;
 		} else {
 			try {
-				const innerMaxW = CONTENT_W * 0.72 - 6;
+				const innerMaxW = layout.contentW * 0.72 - 6;
 				const fontSizeVal = options?.fontSize || 8.5;
 				pdf.setFont('helvetica', 'normal');
 				pdf.setFontSize(fontSizeVal);
@@ -1014,14 +1013,14 @@ export async function exportChatToPdf(
 				const estimatedH = senderH + callH + attachmentH + textH + 3.8 + 5.0;
 
 				// ── Protección contra cortes de página ──
-				if (currentY + estimatedH > PDF_H_MM - MARGIN) {
+				if (currentY + estimatedH > layout.pageH - layout.margin) {
 					pdf.addPage();
 					setFill(pdf, theme.pageBg);
-					pdf.rect(0, 0, PDF_W_MM, PDF_H_MM, 'F');
-					currentY = MARGIN + 4;
+					pdf.rect(0, 0, layout.pageW, layout.pageH, 'F');
+					currentY = layout.margin + 3;
 				}
 
-				const result = await drawMessage(pdf, msg, currentY, theme, isGroup, fontSizeVal);
+				const result = await drawMessage(pdf, msg, currentY, theme, layout, isGroup, fontSizeVal);
 				currentY += result.heightUsed;
 			} catch (err) {
 				console.warn('Error al dibujar mensaje en PDF', err);
@@ -1051,7 +1050,7 @@ export async function exportChatToPdf(
 		pdf.setFont('helvetica', 'normal');
 		pdf.setFontSize(7.5);
 		setTexHex(pdf, theme.metaColor);
-		pdf.text(`Página ${p} de ${totalPages}`, PDF_W_MM / 2, PDF_H_MM - 4, { align: 'center' });
+		pdf.text(`Página ${p} de ${totalPages}`, layout.pageW / 2, layout.pageH - Math.max(3, layout.margin - 2), { align: 'center' });
 	}
 
 	pdf.save(`evidencia_whatsapp_${meta.title.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`);

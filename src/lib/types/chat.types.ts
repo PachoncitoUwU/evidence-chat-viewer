@@ -164,5 +164,7 @@ export interface PdfExportOptions {
 	watermarkText?: string;
 	pdfTheme?: 'dark' | 'light' | 'legal';
 	fontSize?: number;
+	paperSize?: 'legal' | 'letter' | 'a4';
+	compactMargins?: boolean;
 }
 

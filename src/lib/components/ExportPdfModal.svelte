@@ -38,9 +38,11 @@
 	let watermarkText: string = 'EVIDENCIA DIGITAL - USO CONFIDENCIAL';
 	let enableWatermark: boolean = false;
 
-	// Estilo visual del PDF — por defecto WhatsApp Claro
+	// Estilo visual y tamaño de papel del PDF
 	let pdfTheme: 'dark' | 'light' | 'legal' = 'light';
 	let pdfFontSize: number = 8.5;
+	let paperSize: 'legal' | 'letter' | 'a4' = 'legal';
+	let compactMargins: boolean = true;
 
 	$: minDate = messages.length > 0 ? messages[0].date : '';
 	$: maxDate = messages.length > 0 ? messages[messages.length - 1].date : '';
@@ -133,7 +135,9 @@
 			includeGhostMessages,
 			watermarkText: enableWatermark ? watermarkText.trim() : undefined,
 			pdfTheme,
-			fontSize: pdfFontSize
+			fontSize: pdfFontSize,
+			paperSize,
+			compactMargins
 		};
 		onExport(opts);
 	}
@@ -332,12 +336,31 @@
 						</div>
 					{/if}
 
+					<div class="section-title" style="margin-top: 18px;">Tamaño de Hoja de Impresión</div>
+					<div class="form-group">
+						<label for="paperSizeSelect">Formato de papel:</label>
+						<select id="paperSizeSelect" bind:value={paperSize} disabled={isExporting} style="width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color, #ccc); background: var(--bg-card, #fff); color: var(--text-color, #000); font-weight: 600;">
+							<option value="legal">📜 Tamaño Oficio / Legal (8.5 × 14 pulg / 216 × 356 mm)</option>
+							<option value="letter">📄 Tamaño Carta / Letter (8.5 × 11 pulg / 216 × 279 mm)</option>
+							<option value="a4">📑 Tamaño A4 Estándar (210 × 297 mm)</option>
+						</select>
+					</div>
+
+					<div class="section-title" style="margin-top: 18px;">Márgenes de Impresión</div>
+					<label class="toggle-row">
+						<input type="checkbox" bind:checked={compactMargins} disabled={isExporting} />
+						<div class="toggle-info">
+							<span class="toggle-title">Márgenes Mínimos Ultra-Compactos (6 mm)</span>
+							<span class="toggle-sub">Aprovecha al máximo el papel, reduce el número de hojas y evita que se corte texto</span>
+						</div>
+					</label>
+
 					<div class="section-title" style="margin-top: 18px;">Tamaño de Fuente del PDF</div>
 					<div class="form-group">
 						<label for="pdfFontSizeSelect">Tamaño de letra para mensajes:</label>
 						<select id="pdfFontSizeSelect" bind:value={pdfFontSize} disabled={isExporting} style="width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color, #ccc); background: var(--bg-card, #fff); color: var(--text-color, #000);">
-							<option value={7}>7 pt (Compacto)</option>
-							<option value={8.5}>8.5 pt (Estándar)</option>
+							<option value={7}>7 pt (Compacto - Más mensajes por hoja)</option>
+							<option value={8.5}>8.5 pt (Estándar recomendado)</option>
 							<option value={10}>10 pt (Grande)</option>
 							<option value={12}>12 pt (Muy Grande)</option>
 						</select>
