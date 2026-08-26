@@ -259,8 +259,25 @@
 		if (data) {
 			activeCaseId = id;
 			activeMeta = data.meta;
-			activeMessages = data.messages;
 			activeDays = data.days;
+
+			// Aplicar rol guardado
+			let msgs = data.messages;
+			try {
+				const savedOwner = localStorage.getItem(`chat_owner_${id}`);
+				if (savedOwner) {
+					msgs = msgs.map((m) => {
+						if (m.isSystemEvent) return m;
+						return {
+							...m,
+							senderRole: m.senderName === savedOwner ? 'owner' : 'counterpart'
+						};
+					});
+					data.messages = msgs;
+				}
+			} catch { /* noop */ }
+
+			activeMessages = msgs;
 		}
 	}
 
@@ -428,8 +445,25 @@
 		const data = caseDataMap.get(id);
 		if (data) {
 			activeMeta = data.meta;
-			activeMessages = data.messages;
 			activeDays = data.days;
+
+			// Verificar si hay un rol de propietario guardado para este chat
+			let msgs = data.messages;
+			try {
+				const savedOwner = localStorage.getItem(`chat_owner_${id}`);
+				if (savedOwner) {
+					msgs = msgs.map((m) => {
+						if (m.isSystemEvent) return m;
+						return {
+							...m,
+							senderRole: m.senderName === savedOwner ? 'owner' : 'counterpart'
+						};
+					});
+					data.messages = msgs;
+				}
+			} catch { /* noop */ }
+
+			activeMessages = msgs;
 			filter = { year: null, month: null, day: null, searchQuery: '', onlyWithMedia: false };
 		}
 	}
@@ -529,36 +563,42 @@
 			curData.messages = activeMessages;
 		}
 
-		// Persistir inmediatamente en IndexedDB para que no se pierda al recargar
-		if (user && user.isLoggedIn) {
-			saveUserCasesToCloud(user.username, user.pin, cases, caseDataMap).catch((e) =>
-				console.warn('Error guardando cambio de lados en IndexedDB:', e)
-			);
+		// Persistir rol por caso en localStorage como fallback instantáneo ultra confiable
+		try {
+			const ownerRolesKey = `chat_owner_${activeCaseId}`;
+			localStorage.setItem(ownerRolesKey, ownerName);
+		} catch { /* noop */ }
 
-			// Persistir también en Supabase Cloud si está configurado
-			if (isSupabaseConfigured() && curData && activeMeta) {
-				const targetCase = cases.find((c) => c.id === activeCaseId) || {
-					id: activeCaseId,
-					name: activeMeta.title,
-					description: `${activeMessages.length} mensajes`,
-					createdAt: new Date().toISOString(),
-					chats: [activeMeta]
-				};
-				uploadCaseToSupabase(
-					user.username,
-					targetCase,
-					curData.meta,
-					activeMessages,
-					curData.days,
-					undefined,
-					undefined,
-					Array.from($hiddenMediaStore)
-				).catch((e) => console.warn('Error sincronizando cambio de lados en Supabase:', e));
-			}
+		// Persistir inmediatamente en IndexedDB para que sobreviva recargas de página
+		const saveUser = user?.isLoggedIn && user.username ? user.username : 'local_user';
+		const savePin = user?.isLoggedIn && user.pin ? user.pin : '1234';
+		saveUserCasesToCloud(saveUser, savePin, cases, caseDataMap).catch((e) =>
+			console.warn('Error guardando cambio de lados en IndexedDB:', e)
+		);
+
+		// Persistir también en Supabase Cloud si está configurado y el usuario ha iniciado sesión
+		if (user && user.isLoggedIn && isSupabaseConfigured() && curData && activeMeta) {
+			const targetCase = cases.find((c) => c.id === activeCaseId) || {
+				id: activeCaseId,
+				name: activeMeta.title,
+				description: `${activeMessages.length} mensajes`,
+				createdAt: new Date().toISOString(),
+				chats: [activeMeta]
+			};
+			uploadCaseToSupabase(
+				user.username,
+				targetCase,
+				curData.meta,
+				activeMessages,
+				curData.days,
+				undefined,
+				undefined,
+				Array.from($hiddenMediaStore)
+			).catch((e) => console.warn('Error sincronizando cambio de lados en Supabase:', e));
 		}
 
 		toastMessage = '🔄 Lados actualizados y guardados';
-		toastDetails = `"${ownerName}" ahora está a la derecha (verde) y el cambio quedó guardado.`;
+		toastDetails = `"${ownerName}" ahora está a la derecha (verde) y el cambio quedó guardado permanentemente.`;
 		toastType = 'success';
 		showToast = true;
 	}

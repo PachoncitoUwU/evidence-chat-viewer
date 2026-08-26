@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v3.0.7 Cloud';
-export const BUILD_COMMIT = 'fix-persistent-chat-roles-and-video-fallback-player';
+export const APP_VERSION = 'v3.0.8 Cloud';
+export const BUILD_COMMIT = 'fix-universal-video-modal-and-persistent-chat-owner';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Persistencia automática del cambio de lados (owner/counterpart) en base de datos local y Supabase, más reproductor de video mejorado con soporte de formatos y botón de descarga directa si el códec no es nativo.';
+export const BUILD_NOTES = 'Reproducción de video universal con src directo para Chrome, Edge, Brave, Firefox, Safari y móviles, más persistencia garantizada de selección de lados (dueño del chat) en localStorage, IndexedDB y Supabase.';

@@ -19,11 +19,12 @@
 
 	let videoError = false;
 	let errorMessage = '';
+	let videoEl: HTMLVideoElement;
 
 	function handleVideoError(e: Event) {
 		console.warn('Error al reproducir video:', e);
 		videoError = true;
-		errorMessage = 'El formato o códec de este video no puede ser reproducido de forma nativa por el navegador. Puedes descargarlo con el botón de abajo para verlo en tu computador.';
+		errorMessage = 'El formato de este video requiere reproducción externa o códecs del sistema. Puedes descargarlo directamente para verlo sin problemas.';
 	}
 
 	onMount(() => {
@@ -74,15 +75,10 @@
 				controls
 				autoplay
 				playsinline
+				preload="auto"
 				class="video-player"
 				on:error={handleVideoError}
-			>
-				<source {src} type="video/mp4" />
-				<source {src} type="video/webm" />
-				<source {src} type="video/quicktime" />
-				<source {src} type="video/3gpp" />
-				Tu navegador no soporta la reproducción directa de este video.
-			</video>
+			></video>
 		{/if}
 	</div>
 </div>
