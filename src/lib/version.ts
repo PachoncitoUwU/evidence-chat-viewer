@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v3.0.5 Cloud';
-export const BUILD_COMMIT = 'fix-stickers-compact-size-and-footer-page-date';
+export const APP_VERSION = 'v3.0.6 Cloud';
+export const BUILD_COMMIT = 'adjust-stickers-size-10mm-and-clean-pdf-footer';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Stickers reducidos a tamaño compacto (~5-6mm) para ahorro de papel y fecha del día visible en el pie de página de cada hoja del PDF.';
+export const BUILD_NOTES = 'Ajuste de stickers a tamaño óptimo (~10mm) y limpieza del pie de página del PDF mostrando únicamente numeración oficial centrada.';

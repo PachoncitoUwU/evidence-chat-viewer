@@ -405,9 +405,9 @@ async function drawMessage(
 				const naturalW = imgInfo.width;
 				const naturalH = imgInfo.height;
 
-				// Stickers pequeños a petición pericial (~5-6mm) e imágenes normales máx 38mm alto / 58mm ancho
-				const maxH = isActuallySticker ? 6 : 38;
-				const maxW = isActuallySticker ? 6 : Math.min(innerMaxW, 58);
+				// Stickers a petición del usuario (~10mm) e imágenes normales máx 38mm alto / 58mm ancho
+				const maxH = isActuallySticker ? 10 : 38;
+				const maxW = isActuallySticker ? 10 : Math.min(innerMaxW, 58);
 
 				// Preservar la proporción exacta de la imagen (aspect ratio) sin compresión ni estiramiento
 				imgDrawW = maxW;
@@ -1006,9 +1006,6 @@ export async function exportChatToPdf(
 	let lastDate = '';
 	const total = exportMessages.length;
 
-	// Mapa para saber qué fecha correspondía a cada página
-	const pageDateMap = new Map<number, string>();
-
 	for (let i = 0; i < total; i++) {
 		const msg = exportMessages[i];
 
@@ -1028,12 +1025,6 @@ export async function exportChatToPdf(
 			currentY += 1.5;
 			const dateH = drawDateSeparator(pdf, label, currentY, theme, layout);
 			currentY += dateH;
-		}
-
-		// Asignar fecha a la página actual
-		const curPageNum = pdf.getNumberOfPages();
-		if (lastDate) {
-			pageDateMap.set(curPageNum, lastDate);
 		}
 
 		if (msg.isSystemEvent) {
@@ -1065,12 +1056,12 @@ export async function exportChatToPdf(
 					if ((att.kind === 'image' || isActuallySticker) && att.previewUrl) {
 						const cached = imgCache.get(att.previewUrl);
 						if (cached) {
-							const maxH = isActuallySticker ? 6 : 38;
-							const maxW = isActuallySticker ? 6 : Math.min(innerMaxW, 58);
+							const maxH = isActuallySticker ? 10 : 38;
+							const maxW = isActuallySticker ? 10 : Math.min(innerMaxW, 58);
 							const h = (cached.height * maxW) / cached.width;
 							attachmentH = Math.min(maxH, h) + 2.0;
 						} else {
-							attachmentH = isActuallySticker ? 6 : 38;
+							attachmentH = isActuallySticker ? 10 : 38;
 						}
 					} else if (att.kind === 'video') attachmentH = 44;
 					else if (att.kind === 'audio') attachmentH = 14;
@@ -1086,7 +1077,6 @@ export async function exportChatToPdf(
 					setFill(pdf, theme.pageBg);
 					pdf.rect(0, 0, layout.pageW, layout.pageH, 'F');
 					currentY = layout.margin + 3;
-					if (lastDate) pageDateMap.set(pdf.getNumberOfPages(), lastDate);
 				}
 
 				const result = await drawMessage(pdf, msg, currentY, theme, layout, isGroup, fontSizeVal);
@@ -1119,20 +1109,6 @@ export async function exportChatToPdf(
 		pdf.setFont('helvetica', 'normal');
 		pdf.setFontSize(7.5);
 		setTexHex(pdf, theme.metaColor);
-
-		// Obtener fecha legible correspondiente a esta página
-		const rawDate = pageDateMap.get(p);
-		let dateLabel = '';
-		if (rawDate) {
-			const [y, mo, d] = rawDate.split('-');
-			const dt = new Date(Number(y), Number(mo) - 1, Number(d));
-			dateLabel = dt.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
-		}
-
-		// Pie de página: Fecha a la izquierda, número de página al centro
-		if (dateLabel) {
-			pdf.text(`📅 ${dateLabel}`, layout.margin + 2, layout.pageH - Math.max(3, layout.margin - 2));
-		}
 		pdf.text(`Página ${p} de ${totalPages}`, layout.pageW / 2, layout.pageH - Math.max(3, layout.margin - 2), { align: 'center' });
 	}
 
