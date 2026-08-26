@@ -208,31 +208,52 @@ function wrapText(pdf: jsPDF, text: string, maxWidth: number): string[] {
 	const cleaned = cleanPdfText(text);
 	if (!cleaned) return [];
 	
-	// Si hay palabras ultra-largas (como URLs o enlaces sin espacios que exceden maxWidth),
-	// dividir esas palabras largas caracter a caracter para que nunca desborden maxWidth
-	const rawLines = pdf.splitTextToSize(cleaned, maxWidth);
-	const safeLines: string[] = [];
+	// Si hay palabras o URLs muy largas sin espacios que exceden maxWidth,
+	// dividirlas previamente en sub-palabras que quepan dentro de maxWidth
+	const words = cleaned.split(' ');
+	const safeWords: string[] = [];
 
-	for (const rawLine of rawLines) {
-		if (pdf.getTextWidth(rawLine) <= maxWidth) {
-			safeLines.push(rawLine);
+	for (const word of words) {
+		if (pdf.getTextWidth(word) > maxWidth) {
+			let chunk = '';
+			for (let i = 0; i < word.length; i++) {
+				const char = word[i];
+				if (pdf.getTextWidth(chunk + char) > maxWidth) {
+					if (chunk) safeWords.push(chunk);
+					chunk = char;
+				} else {
+					chunk += char;
+				}
+			}
+			if (chunk) safeWords.push(chunk);
 		} else {
-			// Si una línea individual aún excede maxWidth por un string sin espacios
+			safeWords.push(word);
+		}
+	}
+
+	const safeText = safeWords.join(' ');
+	const rawLines = pdf.splitTextToSize(safeText, maxWidth);
+	const finalLines: string[] = [];
+
+	for (const line of rawLines) {
+		if (pdf.getTextWidth(line) <= maxWidth) {
+			finalLines.push(line);
+		} else {
 			let cur = '';
-			for (let i = 0; i < rawLine.length; i++) {
-				const char = rawLine[i];
+			for (let i = 0; i < line.length; i++) {
+				const char = line[i];
 				if (pdf.getTextWidth(cur + char) > maxWidth) {
-					if (cur) safeLines.push(cur);
+					if (cur) finalLines.push(cur);
 					cur = char;
 				} else {
 					cur += char;
 				}
 			}
-			if (cur) safeLines.push(cur);
+			if (cur) finalLines.push(cur);
 		}
 	}
 
-	return safeLines;
+	return finalLines;
 }
 
 function roundedRect(
@@ -383,9 +404,9 @@ async function drawMessage(
 				const naturalW = imgInfo.width;
 				const naturalH = imgInfo.height;
 
-				// Stickers compactos (máx 12mm) e Imágenes de fotos (máx 45mm de alto)
-				const maxH = att.isSticker ? 12 : 45;
-				const maxW = att.isSticker ? 12 : innerMaxW;
+				// Stickers compactos (máx 12mm) e Imágenes de fotos moderadas (máx 38mm de alto y máx 58mm de ancho)
+				const maxH = att.isSticker ? 12 : 38;
+				const maxW = att.isSticker ? 12 : Math.min(innerMaxW, 58);
 
 				// Preservar la proporción exacta de la imagen (aspect ratio) sin compresión ni estiramiento
 				imgDrawW = maxW;
@@ -1032,12 +1053,12 @@ export async function exportChatToPdf(
 					if ((att.kind === 'image' || att.isSticker) && att.previewUrl) {
 						const cached = imgCache.get(att.previewUrl);
 						if (cached) {
-							const maxH = att.isSticker ? 12 : 45;
-							const maxW = att.isSticker ? 12 : innerMaxW;
+							const maxH = att.isSticker ? 12 : 38;
+							const maxW = att.isSticker ? 12 : Math.min(innerMaxW, 58);
 							const h = (cached.height * maxW) / cached.width;
 							attachmentH = Math.min(maxH, h) + 2.0;
 						} else {
-							attachmentH = att.isSticker ? 12 : 45;
+							attachmentH = att.isSticker ? 12 : 38;
 						}
 					} else if (att.kind === 'video') attachmentH = 44;
 					else if (att.kind === 'audio') attachmentH = 14;

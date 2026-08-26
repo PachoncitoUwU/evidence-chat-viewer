@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v3.0.2 Cloud';
-export const BUILD_COMMIT = 'fix-pdf-url-wrapping-and-sticker-group-sync';
+export const APP_VERSION = 'v3.0.3 Cloud';
+export const BUILD_COMMIT = 'fix-pdf-url-strict-wrap-and-compact-photos';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Ajuste definitivo para enlaces largos en el PDF sin desbordamiento, agrupación completa de stickers para ocultar todas sus instancias en 1 clic y clarificación de roles emisor/receptor.';
+export const BUILD_NOTES = 'División estricta por caracteres para links y URLs largas que previene cualquier desbordamiento de la burbuja, y reducción del tamaño máximo de fotos a 38mm para optimizar páginas y tinta.';
