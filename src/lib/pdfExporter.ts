@@ -398,15 +398,16 @@ async function drawMessage(
 		if (att.status === 'omitted' || att.status === 'missing') {
 			attachmentH = 7.0;
 		} else if ((att.kind === 'image' || att.isSticker) && att.previewUrl) {
-			const imgInfo = await loadAndProcessImage(att.previewUrl, att.isSticker);
+			const isActuallySticker = att.isSticker || (att.fileName && att.fileName.toLowerCase().includes('sticker'));
+			const imgInfo = await loadAndProcessImage(att.previewUrl, isActuallySticker);
 			if (imgInfo) {
 				imgDataUrl = imgInfo.dataUrl;
 				const naturalW = imgInfo.width;
 				const naturalH = imgInfo.height;
 
-				// Stickers compactos (máx 12mm) e Imágenes de fotos moderadas (máx 38mm de alto y máx 58mm de ancho)
-				const maxH = att.isSticker ? 12 : 38;
-				const maxW = att.isSticker ? 12 : Math.min(innerMaxW, 58);
+				// Stickers pequeños a petición pericial (~5-6mm) e imágenes normales máx 38mm alto / 58mm ancho
+				const maxH = isActuallySticker ? 6 : 38;
+				const maxW = isActuallySticker ? 6 : Math.min(innerMaxW, 58);
 
 				// Preservar la proporción exacta de la imagen (aspect ratio) sin compresión ni estiramiento
 				imgDrawW = maxW;
@@ -424,7 +425,7 @@ async function drawMessage(
 
 				attachmentH = imgDrawH + 2.0;
 			} else {
-				attachmentH = 8.0;
+				attachmentH = isActuallySticker ? 7.0 : 8.0;
 			}
 		} else if (att.kind === 'video') {
 			attachmentH = 44.0;
@@ -1005,6 +1006,9 @@ export async function exportChatToPdf(
 	let lastDate = '';
 	const total = exportMessages.length;
 
+	// Mapa para saber qué fecha correspondía a cada página
+	const pageDateMap = new Map<number, string>();
+
 	for (let i = 0; i < total; i++) {
 		const msg = exportMessages[i];
 
@@ -1026,12 +1030,19 @@ export async function exportChatToPdf(
 			currentY += dateH;
 		}
 
+		// Asignar fecha a la página actual
+		const curPageNum = pdf.getNumberOfPages();
+		if (lastDate) {
+			pageDateMap.set(curPageNum, lastDate);
+		}
+
 		if (msg.isSystemEvent) {
 			if (currentY + 9 > layout.pageH - layout.margin) {
 				pdf.addPage();
 				setFill(pdf, theme.pageBg);
 				pdf.rect(0, 0, layout.pageW, layout.pageH, 'F');
 				currentY = layout.margin + 3;
+				if (lastDate) pageDateMap.set(pdf.getNumberOfPages(), lastDate);
 			}
 			const h = drawSystemEvent(pdf, msg.text, currentY, theme, layout);
 			currentY += h;
@@ -1050,15 +1061,16 @@ export async function exportChatToPdf(
 				let attachmentH = 0;
 				if (msg.attachment) {
 					const att = msg.attachment;
-					if ((att.kind === 'image' || att.isSticker) && att.previewUrl) {
+					const isActuallySticker = att.isSticker || (att.fileName && att.fileName.toLowerCase().includes('sticker'));
+					if ((att.kind === 'image' || isActuallySticker) && att.previewUrl) {
 						const cached = imgCache.get(att.previewUrl);
 						if (cached) {
-							const maxH = att.isSticker ? 12 : 38;
-							const maxW = att.isSticker ? 12 : Math.min(innerMaxW, 58);
+							const maxH = isActuallySticker ? 6 : 38;
+							const maxW = isActuallySticker ? 6 : Math.min(innerMaxW, 58);
 							const h = (cached.height * maxW) / cached.width;
 							attachmentH = Math.min(maxH, h) + 2.0;
 						} else {
-							attachmentH = att.isSticker ? 12 : 38;
+							attachmentH = isActuallySticker ? 6 : 38;
 						}
 					} else if (att.kind === 'video') attachmentH = 44;
 					else if (att.kind === 'audio') attachmentH = 14;
@@ -1074,6 +1086,7 @@ export async function exportChatToPdf(
 					setFill(pdf, theme.pageBg);
 					pdf.rect(0, 0, layout.pageW, layout.pageH, 'F');
 					currentY = layout.margin + 3;
+					if (lastDate) pageDateMap.set(pdf.getNumberOfPages(), lastDate);
 				}
 
 				const result = await drawMessage(pdf, msg, currentY, theme, layout, isGroup, fontSizeVal);
@@ -1106,6 +1119,20 @@ export async function exportChatToPdf(
 		pdf.setFont('helvetica', 'normal');
 		pdf.setFontSize(7.5);
 		setTexHex(pdf, theme.metaColor);
+
+		// Obtener fecha legible correspondiente a esta página
+		const rawDate = pageDateMap.get(p);
+		let dateLabel = '';
+		if (rawDate) {
+			const [y, mo, d] = rawDate.split('-');
+			const dt = new Date(Number(y), Number(mo) - 1, Number(d));
+			dateLabel = dt.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+		}
+
+		// Pie de página: Fecha a la izquierda, número de página al centro
+		if (dateLabel) {
+			pdf.text(`📅 ${dateLabel}`, layout.margin + 2, layout.pageH - Math.max(3, layout.margin - 2));
+		}
 		pdf.text(`Página ${p} de ${totalPages}`, layout.pageW / 2, layout.pageH - Math.max(3, layout.margin - 2), { align: 'center' });
 	}
 

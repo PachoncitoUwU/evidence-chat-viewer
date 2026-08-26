@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v3.0.4 Cloud';
-export const BUILD_COMMIT = 'fix-chat-bubble-sides-and-roles';
+export const APP_VERSION = 'v3.0.5 Cloud';
+export const BUILD_COMMIT = 'fix-stickers-compact-size-and-footer-page-date';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Corrección de roles en vista y PDF: remitente titular a la derecha en verde y contraparte a la izquierda en blanco, más selector e inversor dinámico de lados.';
+export const BUILD_NOTES = 'Stickers reducidos a tamaño compacto (~5-6mm) para ahorro de papel y fecha del día visible en el pie de página de cada hoja del PDF.';

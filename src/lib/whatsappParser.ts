@@ -57,7 +57,7 @@ const MEDIA_EXTRACT_RE = new RegExp(
 	'i'
 );
 
-const STICKER_RE = /STK-[\w\-.]+\.webp$/i;
+const STICKER_RE = /(?:STK-[\w\-.]+\.webp$|[\w\-. ]*sticker[\w\-. ]*\.webp$|[\w\-. ]*-sticker[\w\-. ]*)/i;
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -352,7 +352,9 @@ async function parseTxt(
 						const fileName = rawMatchedFile.trim();
 						const cleanName = stripInvisible(fileName);
 						const kind = detectMediaKind(cleanName);
-						const isSticker = STICKER_RE.test(cleanName) || cleanName.toLowerCase().startsWith('stk-');
+						const isSticker = STICKER_RE.test(cleanName) ||
+							cleanName.toLowerCase().includes('sticker') ||
+							cleanName.toLowerCase().startsWith('stk-');
 
 						// Buscar blob en la colección extraída del ZIP
 						const blob = normalizedMediaMap.get(cleanName.toLowerCase())
