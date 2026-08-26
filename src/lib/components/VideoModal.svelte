@@ -17,6 +17,15 @@
 		a.click();
 	}
 
+	let videoError = false;
+	let errorMessage = '';
+
+	function handleVideoError(e: Event) {
+		console.warn('Error al reproducir video:', e);
+		videoError = true;
+		errorMessage = 'El formato o códec de este video no puede ser reproducido de forma nativa por el navegador. Puedes descargarlo con el botón de abajo para verlo en tu computador.';
+	}
+
 	onMount(() => {
 		window.addEventListener('keydown', handleKeydown);
 		document.body.style.overflow = 'hidden';
@@ -41,7 +50,7 @@
 			<span class="filename">{fileName}</span>
 		{/if}
 		<div class="actions">
-			<button class="icon-btn" on:click={handleDownload} title="Descargar">
+			<button class="icon-btn" on:click={handleDownload} title="Descargar video">
 				<Download size={20} color="white" />
 			</button>
 			<button class="icon-btn" on:click={onClose} title="Cerrar (Esc)">
@@ -51,13 +60,30 @@
 	</div>
 
 	<div class="video-wrap">
-		<!-- svelte-ignore a11y-media-has-caption -->
-		<video
-			{src}
-			controls
-			autoplay
-			class="video-player"
-		></video>
+		{#if videoError}
+			<div class="error-box">
+				<p class="error-msg">⚠️ {errorMessage}</p>
+				<button class="download-fallback-btn" on:click={handleDownload}>
+					<Download size={18} /> Descargar {fileName || 'Video'}
+				</button>
+			</div>
+		{:else}
+			<!-- svelte-ignore a11y-media-has-caption -->
+			<video
+				{src}
+				controls
+				autoplay
+				playsinline
+				class="video-player"
+				on:error={handleVideoError}
+			>
+				<source {src} type="video/mp4" />
+				<source {src} type="video/webm" />
+				<source {src} type="video/quicktime" />
+				<source {src} type="video/3gpp" />
+				Tu navegador no soporta la reproducción directa de este video.
+			</video>
+		{/if}
 	</div>
 </div>
 
@@ -137,5 +163,41 @@
 		border-radius: 8px;
 		background: #000;
 		outline: none;
+	}
+
+	.error-box {
+		background: rgba(255, 255, 255, 0.08);
+		border: 1px solid rgba(255, 255, 255, 0.15);
+		border-radius: 12px;
+		padding: 24px 32px;
+		max-width: 440px;
+		text-align: center;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 16px;
+	}
+	.error-msg {
+		color: #e9edef;
+		font-size: 14px;
+		line-height: 1.5;
+		margin: 0;
+	}
+	.download-fallback-btn {
+		background: #00a884;
+		color: white;
+		border: none;
+		border-radius: 8px;
+		padding: 10px 18px;
+		font-size: 13.5px;
+		font-weight: 600;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		transition: background 0.15s;
+	}
+	.download-fallback-btn:hover {
+		background: #008f70;
 	}
 </style>

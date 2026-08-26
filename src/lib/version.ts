@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v3.0.6 Cloud';
-export const BUILD_COMMIT = 'adjust-stickers-size-10mm-and-clean-pdf-footer';
+export const APP_VERSION = 'v3.0.7 Cloud';
+export const BUILD_COMMIT = 'fix-persistent-chat-roles-and-video-fallback-player';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Ajuste de stickers a tamaño óptimo (~10mm) y limpieza del pie de página del PDF mostrando únicamente numeración oficial centrada.';
+export const BUILD_NOTES = 'Persistencia automática del cambio de lados (owner/counterpart) en base de datos local y Supabase, más reproductor de video mejorado con soporte de formatos y botón de descarga directa si el códec no es nativo.';

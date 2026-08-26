@@ -528,8 +528,37 @@
 		if (curData) {
 			curData.messages = activeMessages;
 		}
-		toastMessage = '🔄 Lados actualizados';
-		toastDetails = `"${ownerName}" ahora está a la derecha (verde).`;
+
+		// Persistir inmediatamente en IndexedDB para que no se pierda al recargar
+		if (user && user.isLoggedIn) {
+			saveUserCasesToCloud(user.username, user.pin, cases, caseDataMap).catch((e) =>
+				console.warn('Error guardando cambio de lados en IndexedDB:', e)
+			);
+
+			// Persistir también en Supabase Cloud si está configurado
+			if (isSupabaseConfigured() && curData && activeMeta) {
+				const targetCase = cases.find((c) => c.id === activeCaseId) || {
+					id: activeCaseId,
+					name: activeMeta.title,
+					description: `${activeMessages.length} mensajes`,
+					createdAt: new Date().toISOString(),
+					chats: [activeMeta]
+				};
+				uploadCaseToSupabase(
+					user.username,
+					targetCase,
+					curData.meta,
+					activeMessages,
+					curData.days,
+					undefined,
+					undefined,
+					Array.from($hiddenMediaStore)
+				).catch((e) => console.warn('Error sincronizando cambio de lados en Supabase:', e));
+			}
+		}
+
+		toastMessage = '🔄 Lados actualizados y guardados';
+		toastDetails = `"${ownerName}" ahora está a la derecha (verde) y el cambio quedó guardado.`;
 		toastType = 'success';
 		showToast = true;
 	}
