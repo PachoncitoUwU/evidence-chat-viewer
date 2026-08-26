@@ -514,6 +514,62 @@
 		handleSelectCase(id);
 		isMobileSidebarOpen = false;
 	}
+
+	function handleSetOwner(ownerName: string) {
+		if (!activeCaseId || !activeMessages.length) return;
+		activeMessages = activeMessages.map((msg) => {
+			if (msg.isSystemEvent) return msg;
+			return {
+				...msg,
+				senderRole: msg.senderName === ownerName ? 'owner' : 'counterpart'
+			};
+		});
+		const curData = caseDataMap.get(activeCaseId);
+		if (curData) {
+			curData.messages = activeMessages;
+		}
+		toastMessage = '🔄 Lados actualizados';
+		toastDetails = `"${ownerName}" ahora está a la derecha (verde).`;
+		toastType = 'success';
+		showToast = true;
+	}
+
+	function handleSwapRoles() {
+		if (!activeCaseId || !activeMessages.length) return;
+		// Detectar quién era el owner actual
+		const firstNonSys = activeMessages.find((m) => !m.isSystemEvent);
+		const currentOwnerMsg = activeMessages.find((m) => !m.isSystemEvent && m.senderRole === 'owner');
+		const currentOwner = currentOwnerMsg ? currentOwnerMsg.senderName : (firstNonSys ? firstNonSys.senderName : null);
+		
+		// Encontrar el counterpart
+		const otherParticipant = (activeMeta?.participants ?? []).find((p) => p !== currentOwner && p !== 'Sistema');
+		
+		if (otherParticipant) {
+			handleSetOwner(otherParticipant);
+		} else {
+			// Invertir directamente
+			activeMessages = activeMessages.map((msg) => {
+				if (msg.isSystemEvent) return msg;
+				return {
+					...msg,
+					senderRole: msg.senderRole === 'owner' ? 'counterpart' : 'owner'
+				};
+			});
+			const curData = caseDataMap.get(activeCaseId);
+			if (curData) {
+				curData.messages = activeMessages;
+			}
+			toastMessage = '🔄 Lados invertidos';
+			toastDetails = 'Se cambiaron los lados de izquierda y derecha en la vista y en el PDF.';
+			toastType = 'success';
+			showToast = true;
+		}
+	}
+
+	$: activeOwnerName = (() => {
+		const ownerMsg = activeMessages.find((m) => !m.isSystemEvent && m.senderRole === 'owner');
+		return ownerMsg ? ownerMsg.senderName : null;
+	})();
 </script>
 
 <svelte:head>
@@ -604,6 +660,9 @@
 			{filter}
 			onSearchChange={handleSearchChange}
 			participants={activeMeta?.participants ?? []}
+			currentOwner={activeOwnerName}
+			onSwapRoles={handleSwapRoles}
+			onSetOwner={handleSetOwner}
 		/>
 
 		{#if !isRightCollapsed}

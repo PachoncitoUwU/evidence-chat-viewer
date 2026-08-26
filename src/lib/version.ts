@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v3.0.3 Cloud';
-export const BUILD_COMMIT = 'fix-pdf-url-strict-wrap-and-compact-photos';
+export const APP_VERSION = 'v3.0.4 Cloud';
+export const BUILD_COMMIT = 'fix-chat-bubble-sides-and-roles';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'División estricta por caracteres para links y URLs largas que previene cualquier desbordamiento de la burbuja, y reducción del tamaño máximo de fotos a 38mm para optimizar páginas y tinta.';
+export const BUILD_NOTES = 'Corrección de roles en vista y PDF: remitente titular a la derecha en verde y contraparte a la izquierda en blanco, más selector e inversor dinámico de lados.';

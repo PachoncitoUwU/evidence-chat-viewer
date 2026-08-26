@@ -14,6 +14,9 @@
 	export let filter: EvidenceFilter;
 	export let onSearchChange: (q: string) => void = () => {};
 	export let participants: string[] = [];
+	export let currentOwner: string | null = null;
+	export let onSwapRoles: (() => void) | null = null;
+	export let onSetOwner: ((name: string) => void) | null = null;
 
 	let feedEl: HTMLDivElement;
 	let showAppearance = false;
@@ -89,6 +92,9 @@
 {#if showAppearance}
 	<AppearancePanel
 		{participants}
+		{currentOwner}
+		{onSwapRoles}
+		{onSetOwner}
 		onClose={() => (showAppearance = false)}
 	/>
 {/if}

@@ -453,15 +453,34 @@ async function parseTxt(
 		const contactName = contactMatch[1].trim().toLowerCase();
 		for (const name of participantSet) {
 			if (!name.toLowerCase().includes(contactName) && name !== 'Sistema') {
-				inferredOwner = name; break;
+				inferredOwner = name;
+				break;
+			}
+		}
+	}
+	// Si no se dedujo por el nombre del archivo o solo hay 2 participantes y no coincidió:
+	// El contacto externo suele tener más o menos mensajes, pero si no se pudo determinar por archivo:
+	if (!inferredOwner && participantSet.size === 2) {
+		// Si el título del archivo o chat contiene a uno de los participantes, ese es el counterpart y el otro es el owner
+		for (const name of participantSet) {
+			if (name !== 'Sistema') {
+				// Tomar el que no esté en el título
+				if (title && !title.toLowerCase().includes(name.toLowerCase())) {
+					inferredOwner = name;
+					break;
+				}
 			}
 		}
 	}
 	if (!inferredOwner) {
-		let maxCount = 0;
+		let minCount = Infinity;
+		let candidate: string | null = null;
 		for (const [name, count] of countByName) {
-			if (count > maxCount && name !== 'Sistema') { maxCount = count; inferredOwner = name; }
+			if (name !== 'Sistema') {
+				if (!candidate) candidate = name;
+			}
 		}
+		inferredOwner = candidate;
 	}
 
 	for (const msg of messages) {

@@ -4,6 +4,9 @@
   import type { ChatMessage } from '$types/chat.types';
 
   export let participants: string[] = [];
+  export let currentOwner: string | null = null;
+  export let onSwapRoles: (() => void) | null = null;
+  export let onSetOwner: ((participantName: string) => void) | null = null;
   export let onClose: () => void = () => {};
 
   let cfg = $chatConfig;
@@ -137,8 +140,34 @@
 
     {#if participants.length > 0}
       <div class="section">
-        <h4>Nombres en el chat</h4>
-        <p class="hint">Puedes cambiar cómo se muestra cada nombre.</p>
+        <h4>Participantes y Lados</h4>
+        <p class="hint">Define quién eres tú (lado derecho en verde) y quién es la otra persona (lado izquierdo en blanco):</p>
+        
+        {#if onSwapRoles}
+          <button class="swap-sides-btn" on:click={onSwapRoles} title="Invertir los lados de las burbujas">
+            🔄 Invertir lados (Pasar el de la izquierda a la derecha)
+          </button>
+        {/if}
+
+        {#if onSetOwner}
+          <div class="owner-selector">
+            <span class="owner-label">Yo soy (Lado derecho / Verde):</span>
+            <div class="owner-buttons">
+              {#each participants as p}
+                <button
+                  class="owner-btn"
+                  class:active={currentOwner === p}
+                  on:click={() => onSetOwner(p)}
+                >
+                  {currentOwner === p ? '🟢 ' : ''}{cfg.nameAliases[p] || p}
+                </button>
+              {/each}
+            </div>
+          </div>
+        {/if}
+
+        <h4 style="margin-top: 16px;">Apodos en el chat</h4>
+        <p class="hint">Puedes cambiar cómo se muestra cada nombre:</p>
         {#each participants as p}
           <label class="alias-row">
             <span class="alias-real">{p}</span>
@@ -327,6 +356,79 @@
   }
   .emoji-sample-fallback { font-size: 20px; line-height: 1; }
   .emoji-label { font-size: 10px; color: #667781; }
+
+  .swap-sides-btn {
+    width: 100%;
+    background: #00a884;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 0.15s, transform 0.1s;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  }
+  .swap-sides-btn:hover {
+    background: #008f70;
+    transform: translateY(-1px);
+  }
+  .swap-sides-btn:active {
+    transform: translateY(0);
+  }
+
+  .owner-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .owner-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #54656f;
+  }
+  .dark .owner-label {
+    color: #8696a0;
+  }
+  .owner-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .owner-btn {
+    background: #f0f2f5;
+    border: 1.5px solid transparent;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    cursor: pointer;
+    color: #111b21;
+    font-weight: 500;
+    transition: all 0.15s ease;
+  }
+  .dark .owner-btn {
+    background: #2a2a3e;
+    color: #e0e0e0;
+  }
+  .owner-btn:hover {
+    background: #e2e8f0;
+  }
+  .dark .owner-btn:hover {
+    background: #36364f;
+  }
+  .owner-btn.active {
+    background: rgba(0, 168, 132, 0.15);
+    border-color: #00a884;
+    color: #00a884;
+    font-weight: 700;
+  }
 
   .alias-row {
     display: flex;
