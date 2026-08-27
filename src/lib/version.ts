@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v3.0.9 Cloud';
-export const BUILD_COMMIT = 'fix-browser-video-playback-autoplay-and-error-handling';
+export const APP_VERSION = 'v3.1.0 Cloud';
+export const BUILD_COMMIT = 'feat-timeline-jump-to-date-full-scroll-and-auto-media-sync';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Corrección de reproducción de video en Edge, Chrome, Brave y Firefox con verificación real de decodificación y fallback de autoplay.';
+export const BUILD_NOTES = 'Navegación fluida en la cronología que salta a la fecha seleccionada manteniendo el chat completo disponible para subir y bajar, más auto-resolución de URLs de fotos/videos desde Supabase Storage para todos los navegadores.';

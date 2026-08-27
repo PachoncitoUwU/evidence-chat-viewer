@@ -298,11 +298,10 @@
 		}
 	});
 
+	let targetJumpDate: string | null = null;
+
 	$: filteredMessages = activeMessages.filter((m) => {
 		if (m.isSystemEvent) return false;
-		if (filter.year && Number(m.date.slice(0, 4)) !== filter.year) return false;
-		if (filter.month && Number(m.date.slice(5, 7)) !== filter.month) return false;
-		if (filter.day && Number(m.date.slice(8, 10)) !== filter.day) return false;
 		if (filter.onlyWithMedia && !m.attachment) return false;
 		if (filter.searchQuery && !m.text.toLowerCase().includes(filter.searchQuery.toLowerCase())) return false;
 		return true;
@@ -310,6 +309,28 @@
 
 	function handleFilterChange(partial: Partial<EvidenceFilter>) {
 		filter = { ...filter, ...partial };
+		
+		// Si se seleccionó una fecha específica en la cronología, saltar a esa fecha en el chat completo
+		if (partial.year !== undefined || partial.month !== undefined || partial.day !== undefined) {
+			const y = filter.year ? String(filter.year).padStart(4, '0') : null;
+			const m = filter.month ? String(filter.month).padStart(2, '0') : null;
+			const d = filter.day ? String(filter.day).padStart(2, '0') : null;
+
+			if (y && m && d) {
+				targetJumpDate = `${y}-${m}-${d}`;
+			} else if (y && m) {
+				// Primer día disponible de ese mes
+				const firstInMonth = activeDays.find(
+					(day) => day.date.startsWith(`${y}-${m}`)
+				);
+				targetJumpDate = firstInMonth ? firstInMonth.date : `${y}-${m}`;
+			} else if (y) {
+				const firstInYear = activeDays.find((day) => day.date.startsWith(`${y}`));
+				targetJumpDate = firstInYear ? firstInYear.date : `${y}`;
+			} else {
+				targetJumpDate = null;
+			}
+		}
 	}
 
 	function handleSearchChange(q: string) {
@@ -727,6 +748,7 @@
 			messages={filteredMessages}
 			allMessages={activeMessages}
 			{filter}
+			{targetJumpDate}
 			onSearchChange={handleSearchChange}
 			participants={activeMeta?.participants ?? []}
 			currentOwner={activeOwnerName}

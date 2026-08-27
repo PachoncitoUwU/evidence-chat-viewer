@@ -18,6 +18,8 @@
 	export let onSwapRoles: (() => void) | null = null;
 	export let onSetOwner: ((name: string) => void) | null = null;
 
+	export let targetJumpDate: string | null = null;
+
 	let feedEl: HTMLDivElement;
 	let showAppearance = false;
 	let showGallery = false;
@@ -73,11 +75,37 @@
 		if (feedEl) feedEl.scrollTop = feedEl.scrollHeight;
 	}
 
-	$: if (messages) {
+	async function jumpToDate(dateStr: string) {
+		// Encontrar el índice del mensaje o píldora de fecha
+		const targetIndex = groupedAll.findIndex(
+			(item) => (item.type === 'date' && item.key.startsWith(dateStr)) || (item.type === 'msg' && item.msg.date.startsWith(dateStr))
+		);
+
+		if (targetIndex !== -1) {
+			const neededCount = groupedAll.length - targetIndex + 50;
+			if (renderCount < neededCount) {
+				renderCount = Math.min(groupedAll.length, Math.max(renderCount, neededCount));
+			}
+			await tick();
+			const el = document.getElementById(`date-pill-${dateStr}`) || document.querySelector(`[data-date^="${dateStr}"]`);
+			if (el) {
+				el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			}
+		}
+	}
+
+	$: if (targetJumpDate) {
+		jumpToDate(targetJumpDate);
+	}
+
+	$: if (messages && !targetJumpDate) {
 		renderCount = CHUNK_SIZE;
 		scrollToBottom();
 	}
-	onMount(scrollToBottom);
+	onMount(() => {
+		if (targetJumpDate) jumpToDate(targetJumpDate);
+		else scrollToBottom();
+	});
 
 	// Background style: use chatBg from config or fallback to WhatsApp dark
 	$: feedBg = cfg.chatBg || (darkMode ? '#0d1418' : '#e8ede9');
@@ -198,18 +226,20 @@
 
 			{#each displayedGrouped as item (item.type === 'msg' ? item.msg.id : item.key)}
 				{#if item.type === 'date'}
-					<div class="date-pill">
+					<div class="date-pill" id={`date-pill-${item.key}`} data-date={item.key}>
 						<span>{item.label}</span>
 					</div>
 				{:else if item.type === 'msg'}
-					<MessageBubble
-						message={item.msg}
-						{darkMode}
-						bubbleOutColor={cfg.bubbleOutColor}
-						bubbleInColor={cfg.bubbleInColor}
-						emojiStyle={cfg.emojiStyle}
-						isGroup={participants.length > 2}
-					/>
+					<div data-date={item.msg.date}>
+						<MessageBubble
+							message={item.msg}
+							{darkMode}
+							bubbleOutColor={cfg.bubbleOutColor}
+							bubbleInColor={cfg.bubbleInColor}
+							emojiStyle={cfg.emojiStyle}
+							isGroup={participants.length > 2}
+						/>
+					</div>
 				{/if}
 			{/each}
 		{/if}

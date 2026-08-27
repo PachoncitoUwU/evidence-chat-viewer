@@ -301,13 +301,25 @@ export async function loadSupabaseChatSession(
 		let attachment: MediaAttachment | null = null;
 		if (row.media_file_name) {
 			const isSticker = row.media_file_name.startsWith('STK-') || row.media_file_name.endsWith('.webp');
+			
+			// Si el media_url en base de datos estaba vacío pero existe el archivo en Storage, reconstruir su URL pública
+			let publicMediaUrl = row.media_url || null;
+			if (!publicMediaUrl && chatRow.user_id && chatRow.id) {
+				const sanitizeFileName = row.media_file_name.replace(/[^a-zA-Z0-9_.-]/g, '_');
+				const storagePath = `${chatRow.user_id}/${chatRow.id}/${sanitizeFileName}`;
+				const { data: pubData } = supabase.storage.from('chat-media').getPublicUrl(storagePath);
+				if (pubData?.publicUrl) {
+					publicMediaUrl = pubData.publicUrl;
+				}
+			}
+
 			attachment = {
 				fileName: row.media_file_name,
 				kind: (row.media_type as MediaKind) || 'image',
-				previewUrl: row.media_url || null,
+				previewUrl: publicMediaUrl,
 				sizeBytes: null,
 				durationSeconds: null,
-				status: row.media_url ? 'linked' : 'missing',
+				status: publicMediaUrl ? 'linked' : 'missing',
 				isSticker
 			};
 		}
