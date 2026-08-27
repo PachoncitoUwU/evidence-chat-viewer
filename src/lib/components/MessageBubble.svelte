@@ -615,7 +615,7 @@
 	.bubble.has-image-only {
 		padding: 3px;
 		width: fit-content;
-		max-width: 290px;
+		max-width: 366px;
 	}
 
 	.msg-actions-hover {
@@ -732,8 +732,8 @@
 	}
 	.att-image {
 		display: block;
-		max-width: 284px;
-		max-height: 300px;
+		max-width: 360px;
+		max-height: 360px;
 		width: 100%;
 		height: auto;
 		object-fit: cover;
@@ -779,10 +779,10 @@
 		display: flex;
 		align-items: center;
 		gap: 10px;
-		padding: 8px 10px;
+		padding: 8px 12px;
 		width: 100%;
-		min-width: 240px;
-		max-width: 285px;
+		min-width: 250px;
+		max-width: 380px;
 		box-sizing: border-box;
 		border-radius: 12px;
 		background: rgba(0, 0, 0, 0.04);

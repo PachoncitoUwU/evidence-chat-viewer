@@ -132,8 +132,8 @@
 		flex-direction: column;
 		min-height: 0;
 		height: 100%;
-		padding: var(--space-4);
-		gap: var(--space-3);
+		padding: 12px 10px;
+		gap: 8px;
 		background: white;
 	}
 

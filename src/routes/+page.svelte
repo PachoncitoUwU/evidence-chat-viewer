@@ -28,7 +28,7 @@
 	let isLeftCollapsed = false;
 	let isRightCollapsed = false;
 	let leftWidth = 264;
-	let rightWidth = 240;
+	let rightWidth = 200;
 	let isResizingLeft = false;
 	let isResizingRight = false;
 
@@ -51,7 +51,7 @@
 			const newW = Math.max(180, Math.min(500, e.clientX));
 			leftWidth = newW;
 		} else if (isResizingRight) {
-			const newW = Math.max(180, Math.min(500, window.innerWidth - e.clientX));
+			const newW = Math.max(160, Math.min(500, window.innerWidth - e.clientX));
 			rightWidth = newW;
 		}
 	}
@@ -851,7 +851,7 @@
 		flex-shrink: 0;
 	}
 	.timeline-wrapper {
-		width: var(--right-w, 240px);
+		width: var(--right-w, 200px);
 		height: 100%;
 		min-height: 0;
 		flex-shrink: 0;
