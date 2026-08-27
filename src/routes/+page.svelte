@@ -833,25 +833,29 @@
 <style>
 	.app-shell {
 		display: grid;
-		grid-template-columns: var(--left-w, 264px) 1fr var(--right-w, 300px);
+		grid-template-columns: var(--left-w, 280px) 1fr var(--right-w, 300px);
 		grid-template-rows: 1fr;
 		grid-template-areas: 'left main right';
-		gap: var(--space-4);
+		gap: 12px;
 		height: 100vh;
 		box-sizing: border-box;
-		padding: var(--space-4);
-		background: var(--void);
+		padding: 12px;
+		background: #eef2f5;
 		position: relative;
 		overflow: hidden;
 	}
 	.app-shell.left-collapsed {
 		grid-template-columns: 0px 1fr var(--right-w, 300px);
+		gap: 8px;
 	}
 	.app-shell.right-collapsed {
-		grid-template-columns: var(--left-w, 264px) 1fr 0px;
+		grid-template-columns: var(--left-w, 280px) 1fr 0px;
+		gap: 8px;
 	}
 	.app-shell.left-collapsed.right-collapsed {
 		grid-template-columns: 0px 1fr 0px;
+		gap: 0;
+		padding: 0;
 	}
 
 	/* Sidebar & timeline wrappers fill their grid cell height */

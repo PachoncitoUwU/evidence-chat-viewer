@@ -76,21 +76,31 @@
 	}
 
 	async function jumpToDate(dateStr: string) {
-		// Encontrar el índice del mensaje o píldora de fecha
+		if (!dateStr || !groupedAll.length) return;
+		
+		// Encontrar el índice del mensaje o píldora de fecha que coincide con la fecha
 		const targetIndex = groupedAll.findIndex(
 			(item) => (item.type === 'date' && item.key.startsWith(dateStr)) || (item.type === 'msg' && item.msg.date.startsWith(dateStr))
 		);
 
 		if (targetIndex !== -1) {
+			// Si el mensaje está antes del chunk renderizado (los primeros son los más antiguos), expandir para incluirlo
 			const neededCount = groupedAll.length - targetIndex + 50;
 			if (renderCount < neededCount) {
 				renderCount = Math.min(groupedAll.length, Math.max(renderCount, neededCount));
 			}
 			await tick();
-			const el = document.getElementById(`date-pill-${dateStr}`) || document.querySelector(`[data-date^="${dateStr}"]`);
-			if (el) {
-				el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-			}
+			// Intentar buscar por id de píldora o por atributo data-date
+			setTimeout(() => {
+				const el = document.getElementById(`date-pill-${dateStr}`) ||
+					document.querySelector(`[data-date^="${dateStr}"]`) ||
+					document.querySelector(`[data-date*="${dateStr}"]`);
+				if (el) {
+					el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+					el.classList.add('jump-highlight');
+					setTimeout(() => el.classList.remove('jump-highlight'), 2000);
+				}
+			}, 50);
 		}
 	}
 
@@ -98,9 +108,13 @@
 		jumpToDate(targetJumpDate);
 	}
 
-	$: if (messages && !targetJumpDate) {
+	let lastMsgLength = 0;
+	$: if (messages && messages.length !== lastMsgLength) {
+		lastMsgLength = messages.length;
 		renderCount = CHUNK_SIZE;
-		scrollToBottom();
+		if (!targetJumpDate) {
+			scrollToBottom();
+		}
 	}
 	onMount(() => {
 		if (targetJumpDate) jumpToDate(targetJumpDate);
@@ -259,12 +273,24 @@
 		display: flex;
 		flex-direction: column;
 		min-height: 0;
-		border-radius: 0;
+		border-radius: var(--radius-lg, 16px);
 		overflow: hidden;
 		background: var(--void);
+		box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+		border: 1px solid var(--hairline, rgba(0,0,0,0.08));
 	}
 	.feed-wrap.dark {
 		background: #0d1418;
+		border-color: rgba(255,255,255,0.08);
+	}
+
+	:global(.jump-highlight) {
+		animation: pulseHighlight 1.5s ease;
+	}
+	@keyframes pulseHighlight {
+		0% { transform: scale(1); filter: brightness(1); }
+		50% { transform: scale(1.04); filter: brightness(1.2) drop-shadow(0 0 8px rgba(0, 168, 132, 0.6)); }
+		100% { transform: scale(1); filter: brightness(1); }
 	}
 
 	/* ── Header ── */

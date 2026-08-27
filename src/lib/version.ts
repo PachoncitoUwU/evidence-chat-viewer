@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v3.1.0 Cloud';
-export const BUILD_COMMIT = 'feat-timeline-jump-to-date-full-scroll-and-auto-media-sync';
+export const APP_VERSION = 'v3.1.1 Cloud';
+export const BUILD_COMMIT = 'fix-layout-spacing-and-instant-timeline-scroll-targeting';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Navegación fluida en la cronología que salta a la fecha seleccionada manteniendo el chat completo disponible para subir y bajar, más auto-resolución de URLs de fotos/videos desde Supabase Storage para todos los navegadores.';
+export const BUILD_NOTES = 'Ajuste estético de paneles sin espacios vacíos y salto garantizado por scroll animado a la fecha elegida en la cronología.';
