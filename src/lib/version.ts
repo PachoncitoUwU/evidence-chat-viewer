@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v3.0.8 Cloud';
-export const BUILD_COMMIT = 'fix-universal-video-modal-and-persistent-chat-owner';
+export const APP_VERSION = 'v3.0.9 Cloud';
+export const BUILD_COMMIT = 'fix-browser-video-playback-autoplay-and-error-handling';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Reproducción de video universal con src directo para Chrome, Edge, Brave, Firefox, Safari y móviles, más persistencia garantizada de selección de lados (dueño del chat) en localStorage, IndexedDB y Supabase.';
+export const BUILD_NOTES = 'Corrección de reproducción de video en Edge, Chrome, Brave y Firefox con verificación real de decodificación y fallback de autoplay.';

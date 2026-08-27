@@ -22,14 +22,28 @@
 	let videoEl: HTMLVideoElement;
 
 	function handleVideoError(e: Event) {
-		console.warn('Error al reproducir video:', e);
-		videoError = true;
-		errorMessage = 'El formato de este video requiere reproducción externa o códecs del sistema. Puedes descargarlo directamente para verlo sin problemas.';
+		const err = (videoEl && videoEl.error) ? videoEl.error : null;
+		// Solo marcar error si el código de error es real (código 3 o 4 = no soportado/decode error)
+		if (err && (err.code === 3 || err.code === 4)) {
+			console.warn('Error en decodificación de video:', err);
+			videoError = true;
+			errorMessage = 'Este video usa un formato o códec específico de WhatsApp que el navegador no puede decodificar directamente. Puedes descargarlo con el botón de abajo para reproducirlo.';
+		}
 	}
 
 	onMount(() => {
 		window.addEventListener('keydown', handleKeydown);
 		document.body.style.overflow = 'hidden';
+		if (videoEl) {
+			videoEl.load();
+			videoEl.play().catch(() => {
+				// Autoplay con audio puede requerir interacción o mute en algunos navegadores
+				if (videoEl) {
+					videoEl.muted = true;
+					videoEl.play().catch(() => {});
+				}
+			});
+		}
 	});
 	onDestroy(() => {
 		window.removeEventListener('keydown', handleKeydown);
@@ -71,6 +85,7 @@
 		{:else}
 			<!-- svelte-ignore a11y-media-has-caption -->
 			<video
+				bind:this={videoEl}
 				{src}
 				controls
 				autoplay
