@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v3.1.2 Cloud';
-export const BUILD_COMMIT = 'fix-seamless-full-window-layout-and-dynamic-chunk-jump-to-date';
+export const APP_VERSION = 'v3.1.3 Cloud';
+export const BUILD_COMMIT = 'fix-pixel-perfect-full-screen-and-precise-feed-scroll-to-date';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Diseño 100% de pantalla completa estilo WhatsApp Web sin ningún espacio vacío o margen blanco, y corrección del cálculo de chunks en memoria para saltar instantáneamente a cualquier fecha de la cronología.';
+export const BUILD_NOTES = 'Ajuste de pantalla completa pixel-perfect sin gaps ni desbordes, y cálculo de desplazamiento relativo en feedEl para scroll suave exacto a cualquier día o mes de la cronología.';

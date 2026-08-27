@@ -35,10 +35,18 @@
 		onFilterChange({ year: y, month: null, day: null });
 	}
 	function selectMonth(m: number) {
-		onFilterChange({ month: filter.month === m ? null : m, day: null });
+		if (filter.month === m) {
+			onFilterChange({ year: activeYear, month: null, day: null });
+		} else {
+			onFilterChange({ year: activeYear, month: m, day: null });
+		}
 	}
 	function selectDay(d: number) {
-		onFilterChange({ day: filter.day === d ? null : d });
+		if (filter.day === d) {
+			onFilterChange({ year: activeYear, month: filter.month, day: null });
+		} else {
+			onFilterChange({ year: activeYear, month: filter.month, day: d });
+		}
 	}
 </script>
 

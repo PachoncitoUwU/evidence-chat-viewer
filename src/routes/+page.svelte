@@ -706,7 +706,7 @@
 	class:right-collapsed={isRightCollapsed}
 	style="--left-w: {leftWidth}px; --right-w: {rightWidth}px;"
 >
-	<div class="sidebar-wrapper" class:mobile-open={isMobileSidebarOpen} class:collapsed={isLeftCollapsed} style="width: {leftWidth}px;">
+	<div class="sidebar-wrapper" class:mobile-open={isMobileSidebarOpen} class:collapsed={isLeftCollapsed}>
 		<ProjectSidebar
 			{cases}
 			{activeCaseId}
@@ -760,7 +760,7 @@
 			<div class="panel-resizer right-resizer" on:mousedown={startResizeRight} title="Arrastrar para ajustar el ancho del panel derecho"></div>
 		{/if}
 
-		<div class="timeline-wrapper" class:mobile-open={isMobileTimelineOpen} class:collapsed={isRightCollapsed} style="width: {rightWidth}px;">
+		<div class="timeline-wrapper" class:mobile-open={isMobileTimelineOpen} class:collapsed={isRightCollapsed}>
 			<TimelinePanel
 				days={activeDays}
 				{filter}

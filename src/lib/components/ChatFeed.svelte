@@ -78,37 +78,46 @@
 	async function jumpToDate(dateStr: string) {
 		if (!dateStr || !groupedAll.length) return;
 		
-		// Encontrar el índice del mensaje o píldora de fecha que coincide con la fecha
+		// Encontrar el primer elemento que coincide con la fecha
 		const targetIndex = groupedAll.findIndex(
 			(item) => (item.type === 'date' && item.key.startsWith(dateStr)) || (item.type === 'msg' && item.msg.date.startsWith(dateStr))
 		);
 
 		if (targetIndex !== -1) {
 			// Los mensajes se renderizan desde el final: slice(groupedAll.length - renderCount)
-			// Para que targetIndex esté visible, necesitamos renderCount >= groupedAll.length - targetIndex
-			const neededCount = groupedAll.length - targetIndex + 100;
+			// Para que targetIndex esté renderizado:
+			const neededCount = groupedAll.length - targetIndex + 150;
 			if (renderCount < neededCount) {
 				renderCount = Math.min(groupedAll.length, Math.max(renderCount, neededCount));
 			}
 			await tick();
 			
-			// Reintentar encontrar el elemento en el DOM después del tick
-			const findAndScroll = () => {
+			const performScroll = () => {
 				const el = document.getElementById(`date-pill-${dateStr}`) ||
 					document.querySelector(`[data-date^="${dateStr}"]`) ||
-					document.querySelector(`[data-date*="${dateStr}"]`);
-				if (el) {
-					el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+					document.querySelector(`[data-date*="${dateStr}"]`) as HTMLElement | null;
+					
+				if (el && feedEl) {
+					// Calcular offset dentro del contenedor con scroll
+					const feedRect = feedEl.getBoundingClientRect();
+					const elRect = el.getBoundingClientRect();
+					const relativeTop = elRect.top - feedRect.top + feedEl.scrollTop;
+					
+					feedEl.scrollTo({
+						top: Math.max(0, relativeTop - 30),
+						behavior: 'smooth'
+					});
+
 					el.classList.add('jump-highlight');
-					setTimeout(() => el.classList.remove('jump-highlight'), 2000);
+					setTimeout(() => el.classList.remove('jump-highlight'), 2500);
 					return true;
 				}
 				return false;
 			};
 
-			if (!findAndScroll()) {
-				setTimeout(findAndScroll, 80);
-				setTimeout(findAndScroll, 200);
+			if (!performScroll()) {
+				setTimeout(performScroll, 60);
+				setTimeout(performScroll, 200);
 			}
 		}
 	}
