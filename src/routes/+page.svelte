@@ -836,26 +836,23 @@
 		grid-template-columns: var(--left-w, 280px) 1fr var(--right-w, 300px);
 		grid-template-rows: 1fr;
 		grid-template-areas: 'left main right';
-		gap: 12px;
+		gap: 0px;
 		height: 100vh;
+		width: 100vw;
 		box-sizing: border-box;
-		padding: 12px;
-		background: #eef2f5;
+		padding: 0px;
+		background: #d1d7db;
 		position: relative;
 		overflow: hidden;
 	}
 	.app-shell.left-collapsed {
 		grid-template-columns: 0px 1fr var(--right-w, 300px);
-		gap: 8px;
 	}
 	.app-shell.right-collapsed {
 		grid-template-columns: var(--left-w, 280px) 1fr 0px;
-		gap: 8px;
 	}
 	.app-shell.left-collapsed.right-collapsed {
 		grid-template-columns: 0px 1fr 0px;
-		gap: 0;
-		padding: 0;
 	}
 
 	/* Sidebar & timeline wrappers fill their grid cell height */
@@ -869,12 +866,19 @@
 		height: 100%;
 		min-height: 0;
 	}
-	.sidebar-wrapper :global(aside),
+	.sidebar-wrapper :global(aside) {
+		height: 100% !important;
+		min-height: 0;
+		box-sizing: border-box;
+		border-radius: 0;
+		border-right: 1px solid rgba(0,0,0,0.1);
+	}
 	.timeline-wrapper :global(aside) {
 		height: 100% !important;
 		min-height: 0;
 		box-sizing: border-box;
-		border-radius: var(--radius-lg);
+		border-radius: 0;
+		border-left: 1px solid rgba(0,0,0,0.1);
 	}
 	.sidebar-wrapper.collapsed, .timeline-wrapper.collapsed {
 		display: none;

@@ -84,23 +84,32 @@
 		);
 
 		if (targetIndex !== -1) {
-			// Si el mensaje está antes del chunk renderizado (los primeros son los más antiguos), expandir para incluirlo
-			const neededCount = groupedAll.length - targetIndex + 50;
+			// Los mensajes se renderizan desde el final: slice(groupedAll.length - renderCount)
+			// Para que targetIndex esté visible, necesitamos renderCount >= groupedAll.length - targetIndex
+			const neededCount = groupedAll.length - targetIndex + 100;
 			if (renderCount < neededCount) {
 				renderCount = Math.min(groupedAll.length, Math.max(renderCount, neededCount));
 			}
 			await tick();
-			// Intentar buscar por id de píldora o por atributo data-date
-			setTimeout(() => {
+			
+			// Reintentar encontrar el elemento en el DOM después del tick
+			const findAndScroll = () => {
 				const el = document.getElementById(`date-pill-${dateStr}`) ||
 					document.querySelector(`[data-date^="${dateStr}"]`) ||
 					document.querySelector(`[data-date*="${dateStr}"]`);
 				if (el) {
-					el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+					el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 					el.classList.add('jump-highlight');
 					setTimeout(() => el.classList.remove('jump-highlight'), 2000);
+					return true;
 				}
-			}, 50);
+				return false;
+			};
+
+			if (!findAndScroll()) {
+				setTimeout(findAndScroll, 80);
+				setTimeout(findAndScroll, 200);
+			}
 		}
 	}
 
@@ -273,15 +282,14 @@
 		display: flex;
 		flex-direction: column;
 		min-height: 0;
-		border-radius: var(--radius-lg, 16px);
+		height: 100%;
+		border-radius: 0;
 		overflow: hidden;
 		background: var(--void);
-		box-shadow: 0 4px 20px rgba(0,0,0,0.06);
-		border: 1px solid var(--hairline, rgba(0,0,0,0.08));
+		border: none;
 	}
 	.feed-wrap.dark {
 		background: #0d1418;
-		border-color: rgba(255,255,255,0.08);
 	}
 
 	:global(.jump-highlight) {
