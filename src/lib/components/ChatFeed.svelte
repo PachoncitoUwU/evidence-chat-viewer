@@ -287,10 +287,12 @@
 
 <style>
 	.feed-wrap {
-		grid-area: main;
+		flex: 1;
+		width: 100%;
 		display: flex;
 		flex-direction: column;
 		min-height: 0;
+		min-width: 0;
 		height: 100%;
 		border-radius: 0;
 		overflow: hidden;

@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v3.1.3 Cloud';
-export const BUILD_COMMIT = 'fix-pixel-perfect-full-screen-and-precise-feed-scroll-to-date';
+export const APP_VERSION = 'v3.1.5 Cloud';
+export const BUILD_COMMIT = 'fix-collapsed-timeline-empty-space-flex-layout';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Ajuste de pantalla completa pixel-perfect sin gaps ni desbordes, y cálculo de desplazamiento relativo en feedEl para scroll suave exacto a cualquier día o mes de la cronología.';
+export const BUILD_NOTES = 'Solución definitiva al espacio vacío: migración del contenedor principal a flexbox dinámico para que el chat siempre ocupe el 100% del ancho libre al colapsar la cronología o la barra lateral.';

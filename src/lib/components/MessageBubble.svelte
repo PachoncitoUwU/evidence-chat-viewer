@@ -465,7 +465,7 @@
 		display: flex;
 		flex-direction: column;
 		align-items: flex-start;
-		max-width: 76%;
+		max-width: 88%;
 		margin-bottom: 3px;
 		position: relative;
 	}

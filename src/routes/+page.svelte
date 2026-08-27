@@ -28,7 +28,7 @@
 	let isLeftCollapsed = false;
 	let isRightCollapsed = false;
 	let leftWidth = 264;
-	let rightWidth = 300;
+	let rightWidth = 240;
 	let isResizingLeft = false;
 	let isResizingRight = false;
 
@@ -832,11 +832,8 @@
 
 <style>
 	.app-shell {
-		display: grid;
-		grid-template-columns: var(--left-w, 280px) 1fr var(--right-w, 300px);
-		grid-template-rows: 1fr;
-		grid-template-areas: 'left main right';
-		gap: 0px;
+		display: flex;
+		flex-direction: row;
 		height: 100vh;
 		width: 100vw;
 		box-sizing: border-box;
@@ -845,29 +842,23 @@
 		position: relative;
 		overflow: hidden;
 	}
-	.app-shell.left-collapsed {
-		grid-template-columns: 0px 1fr var(--right-w, 300px);
-	}
-	.app-shell.right-collapsed {
-		grid-template-columns: var(--left-w, 280px) 1fr 0px;
-	}
-	.app-shell.left-collapsed.right-collapsed {
-		grid-template-columns: 0px 1fr 0px;
-	}
 
-	/* Sidebar & timeline wrappers fill their grid cell height */
+	/* Sidebar & timeline wrappers fill their container */
 	.sidebar-wrapper {
-		grid-area: left;
+		width: var(--left-w, 264px);
 		height: 100%;
 		min-height: 0;
+		flex-shrink: 0;
 	}
 	.timeline-wrapper {
-		grid-area: right;
+		width: var(--right-w, 240px);
 		height: 100%;
 		min-height: 0;
+		flex-shrink: 0;
 	}
 	.sidebar-wrapper :global(aside) {
 		height: 100% !important;
+		width: 100% !important;
 		min-height: 0;
 		box-sizing: border-box;
 		border-radius: 0;
@@ -875,13 +866,15 @@
 	}
 	.timeline-wrapper :global(aside) {
 		height: 100% !important;
+		width: 100% !important;
 		min-height: 0;
 		box-sizing: border-box;
 		border-radius: 0;
 		border-left: 1px solid rgba(0,0,0,0.1);
 	}
 	.sidebar-wrapper.collapsed, .timeline-wrapper.collapsed {
-		display: none;
+		display: none !important;
+		width: 0 !important;
 	}
 
 	.panel-resizer {
@@ -927,13 +920,13 @@
 		background: #0d1418;
 	}
 
-	/* Onboarding dropzone — ocupa todo el espacio restante (col 2 + col 3) */
+	/* Onboarding dropzone — ocupa todo el espacio restante */
 	.onboarding {
-		grid-column: 2 / -1;
-		grid-row: 1;
+		flex: 1;
+		width: 100%;
+		height: 100%;
 		align-self: center;
 		justify-self: center;
-		width: 100%;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -945,7 +938,9 @@
 	}
 
 	.center-state {
-		grid-column: 2 / span 2;
+		flex: 1;
+		width: 100%;
+		height: 100%;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
