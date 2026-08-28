@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------
  */
 
-export const APP_VERSION = 'v3.1.6 Cloud';
-export const BUILD_COMMIT = 'compact-timeline-200px-and-wider-media-bubbles';
+export const APP_VERSION = 'v3.1.7 Cloud';
+export const BUILD_COMMIT = 'align-outgoing-bubbles-to-right-edge-full-width-wrapper';
 export const BUILD_DATE = new Date().toLocaleDateString('es-ES');
-export const BUILD_NOTES = 'Cronología compacta de 200px y ampliación de tarjetas de audio y fotos en el chat para maximizar la superficie útil y eliminar el espacio libre lateral.';
+export const BUILD_NOTES = 'Alineación de burbujas salientes pegadas directamente al borde derecho del contenedor del chat mediante envoltorios de ancho completo (width 100%).';

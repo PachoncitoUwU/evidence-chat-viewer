@@ -262,7 +262,7 @@
 						<span>{item.label}</span>
 					</div>
 				{:else if item.type === 'msg'}
-					<div data-date={item.msg.date}>
+					<div class="msg-row-wrapper" data-date={item.msg.date}>
 						<MessageBubble
 							message={item.msg}
 							{darkMode}
@@ -443,6 +443,12 @@
 		flex-direction: column;
 		gap: 1px;
 		background-size: 300px 300px;
+	}
+
+	.msg-row-wrapper {
+		width: 100%;
+		display: flex;
+		flex-direction: column;
 	}
 
 	/* ── Date separator pills ── */
